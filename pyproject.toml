@@ -1,0 +1,41 @@
+[project]
+name = "marsopt"
+version = "0.1"
+
+dependencies = [
+    "numpy>=1.24.4",
+]
+authors = [
+    { name = "Samet Copur", email = "sametcopur@yahoo.com" },
+    { name = "Ilker Birbil", email = 'sibirbil@gmail.com' },
+]
+description = "Mixed Adaptive Random Search for Optimization"
+readme = "README.md"
+license = {text = "MIT License"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = [
+    "python",
+    "data-science",
+    "machine-learning",
+    "machine-learning-library",
+    "explainable-ai",
+    "gradient boosting",
+]
+
+requires-python = ">=3.9"
+
+[project.urls]
+Documentation = "https://marsopt.readthedocs.io/en/latest/"
+Repository = "https://github.com/sibirbil/marspot"
+Tracker = "https://github.com/sibirbil/marspot/issues"
+
+[tool.cibuildwheel]
+build = "cp39-* cp310-* cp311-* cp312-* cp312-* cp313-*"
+
+[build-system]
+requires = ["numpy"]
+build-backend = "setuptools.build_meta"
