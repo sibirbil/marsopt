@@ -4,11 +4,38 @@ from typing import List, Union
 
 
 class CategoryIndexer:
-    def __init__(self):
+    """
+    A helper class for managing categorical parameter indexing.
+
+    Attributes
+    ----------
+    str_to_idx : dict
+        A dictionary mapping category names (strings) to unique integer indices.
+    next_idx : int
+        The next available index for a new category.
+    """
+
+    def __init__(self) -> None:
+        """
+        Initializes the category indexer.
+        """
         self.str_to_idx = {}
         self.next_idx = 0
 
-    def get_indices(self, strings):
+    def get_indices(self, strings: List[str]) -> List[int]:
+        """
+        Converts a list of category names to their corresponding integer indices.
+
+        Parameters
+        ----------
+        strings : List[str]
+            List of category names.
+
+        Returns
+        -------
+        List[int]
+            List of corresponding integer indices.
+        """
         result = []
         for s in strings:
             if s not in self.str_to_idx:
@@ -17,28 +44,83 @@ class CategoryIndexer:
             result.append(self.str_to_idx[s])
         return result
 
-    def get_strings(self, indices):
-        idx_to_str = {v: k for k, v in self.str_to_idx.items()}
-        return [idx_to_str[i] for i in indices]
+    def get_strings(self, indice: int) -> str:
+        """
+        Converts a list of integer indices back to their corresponding category names.
 
-    def reset(self):
+        Parameters
+        ----------
+        indices : List[int]
+            List of category indices.
+
+        Returns
+        -------
+        List[str]
+            List of corresponding category names.
+        """
+        idx_to_str = {v: k for k, v in self.str_to_idx.items()}
+        return idx_to_str[indice]
+
+    def reset(self) -> None:
+        """
+        Resets the category indexer by clearing all stored indices.
+        """
         self.str_to_idx.clear()
         self.next_idx = 0
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """
+        Returns the number of unique categories.
+
+        Returns
+        -------
+        int
+            Number of categories stored in the indexer.
+        """
         return len(self.str_to_idx)
 
 
 class Parameter:
+    """
+    Represents a parameter in an optimization process.
+
+    Attributes
+    ----------
+    name : str
+        The name of the parameter.
+    type : type
+        The type of the parameter (int, float, or categorical).
+    values : NDArray
+        An array storing parameter values.
+    category_indexer : CategoryIndexer
+        Manages category indices for categorical parameters.
+    """
+
     __slots__ = ["name", "type", "values", "category_indexer"]
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
+        """
+        Initializes a Parameter instance.
+
+        Parameters
+        ----------
+        name : str
+            The name of the parameter.
+        """
         self.name: str = name
         self.type: type = None
         self.values: NDArray = None
         self.category_indexer = CategoryIndexer()
 
     def __repr__(self) -> str:
+        """
+        Returns a string representation of the Parameter instance.
+
+        Returns
+        -------
+        str
+            String representation including the name, type, and value preview.
+        """
         values_info = ""
         if self.values is not None:
             if self.values.size > 0:
@@ -60,6 +142,21 @@ class Parameter:
     def set_values(
         self, max_iter: int, param_type_or_categories: Union[int, float, List[str]]
     ) -> None:
+        """
+        Initializes the storage for parameter values based on the parameter type.
+
+        Parameters
+        ----------
+        max_iter : int
+            Maximum number of iterations the parameter will be used for.
+        param_type_or_categories : Union[int, float, List[str]]
+            The type of parameter (int, float) or a list of categorical values.
+
+        Raises
+        ------
+        ValueError
+            If an unsupported parameter type is provided.
+        """
         if isinstance(param_type_or_categories, type):
             if param_type_or_categories == int:
                 self.values = np.empty(shape=(max_iter,), dtype=np.float64)
@@ -75,7 +172,7 @@ class Parameter:
             max_indice = max(self.category_indexer.get_indices(categories))
 
             if total_cats == 0:
-                self.values = np.empty(shape=(max_iter, max_indice), dtype=np.float64)
+                self.values = np.empty(shape=(max_iter, max_indice + 1), dtype=np.float64)
                 self.type = type(categories)
             elif total_cats < max_indice:
                 self.values = np.vstack(

@@ -1,38 +1,128 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable
 import numpy as np
 from numpy.typing import NDArray
 from .parameters import Parameter
 
 
 class Trial:
-    def __init__(self, optimizer: "MARSOpt", trial_id: int):
+    """
+    Represents a single trial in the optimization process.
+
+    Attributes
+    ----------
+    optimizer : MARSOpt
+        The optimizer instance that manages this trial.
+    trial_id : int
+        The unique identifier of this trial.
+    params : Dict[str, Any]
+        Dictionary storing suggested parameter values for this trial.
+    """
+
+    def __init__(self, optimizer: "MARSOpt", trial_id: int) -> None:
+        """
+        Initializes a Trial instance.
+
+        Parameters
+        ----------
+        optimizer : MARSOpt
+            The optimizer managing this trial.
+        trial_id : int
+            The unique identifier for this trial.
+        """
         self.optimizer = optimizer
         self.trial_id = trial_id
         self.params: Dict[str, Any] = {}
 
-    def suggest_float(
-        self, name: str, low: float, high: float, log: bool = False
-    ) -> float:
-        """Suggest a float parameter value"""
+    def suggest_float(self, name: str, low: float, high: float, log: bool = False) -> float:
+        """
+        Suggests a floating-point parameter value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the parameter.
+        low : float
+            The lower bound for the parameter.
+        high : float
+            The upper bound for the parameter.
+        log : bool, optional
+            Whether to sample in logarithmic scale (default is False).
+
+        Returns
+        -------
+        float
+            The suggested float value.
+        """
         value = self.optimizer._suggest_numerical(name, low, high, float, log)
         self.params[name] = value
         return value
 
     def suggest_int(self, name: str, low: int, high: int, log: bool = False) -> int:
-        """Suggest an integer parameter value"""
+        """
+        Suggests an integer parameter value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the parameter.
+        low : int
+            The lower bound for the parameter.
+        high : int
+            The upper bound for the parameter.
+        log : bool, optional
+            Whether to sample in logarithmic scale (default is False).
+
+        Returns
+        -------
+        int
+            The suggested integer value.
+        """
         value = self.optimizer._suggest_numerical(name, low, high, int, log)
         self.params[name] = value
         return value
 
     def suggest_categorical(self, name: str, categories: List[Any]) -> Any:
-        """Suggest a categorical parameter value"""
+        """
+        Suggests a categorical parameter value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the parameter.
+        categories : List[Any]
+            A list of possible categorical values.
+
+        Returns
+        -------
+        Any
+            The suggested categorical value.
+        """
         value = self.optimizer._suggest_categorical(name, categories)
         self.params[name] = value
         return value
 
 
 class MARSOpt:
-    """Main optimizer working directly in parameter space"""
+    """
+    A global optimization algorithm that searches the parameter space.
+
+    Attributes
+    ----------
+    n_init_points : int
+        Number of initial random trials before optimization.
+    initial_noise : float
+        Initial noise level in parameter selection.
+    min_temperature : float
+        Minimum temperature for simulated annealing behavior.
+    rng : np.random.Generator
+        Random number generator for reproducibility.
+    parameters : Dict[str, Parameter]
+        Dictionary storing parameter definitions.
+    objective_values : NDArray
+        Array storing objective function values across trials.
+    current_trial : Optional[Trial]
+        The current trial being evaluated.
+    """
 
     def __init__(
         self,
@@ -40,7 +130,21 @@ class MARSOpt:
         random_state: Optional[int] = None,
         initial_noise: float = 0.20,
         min_temperature: float = 0.20,
-    ):
+    ) -> None:
+        """
+        Initializes the optimizer.
+
+        Parameters
+        ----------
+        n_init_points : int, optional
+            Number of initial random points (default is 10).
+        random_state : Optional[int], optional
+            Seed for reproducibility (default is None).
+        initial_noise : float, optional
+            Initial noise level (default is 0.20).
+        min_temperature : float, optional
+            Minimum temperature for simulated annealing (default is 0.20).
+        """
         self.n_init_points = n_init_points
         self.initial_noise = initial_noise
         self.min_temperature = min_temperature
@@ -49,15 +153,36 @@ class MARSOpt:
         self.parameters: Dict[str, Parameter] = {}
         self.objective_values: NDArray = None
         self.current_trial: Optional[Trial] = None
-        
+
         self._progress: float = None
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._obj_arg_sort: NDArray = None
 
     def _suggest_numerical(
-        self, name: str, low: float, high: float, param_type: str, log: bool
+        self, name: str, low: float, high: float, param_type: type, log: bool
     ) -> float:
+        """
+        Suggests a numerical parameter value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the parameter.
+        low : float
+            The lower bound for the parameter.
+        high : float
+            The upper bound for the parameter.
+        param_type : type
+            The type of parameter (int or float).
+        log : bool
+            Whether to sample in logarithmic scale.
+
+        Returns
+        -------
+        float
+            The suggested numerical value.
+        """
         param = self.parameters.get(name)
 
         if param is None:
@@ -127,8 +252,22 @@ class MARSOpt:
 
         return value
 
-    def _suggest_categorical(self, name: str, categories: List[Any]) -> Any:
-        """Handle categorical parameter suggestions"""
+    def _suggest_categorical(self, name: str, categories: List[str]) -> Any:
+        """
+        Suggests a categorical parameter value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the parameter.
+        categories : List[Any]
+            A list of possible categorical values.
+
+        Returns
+        -------
+        Any
+            The suggested categorical value.
+        """
         param = self.parameters.get(name)
 
         if param is None:
@@ -146,7 +285,8 @@ class MARSOpt:
             best_objectives = np.argsort(
                 self.objective_values[: self.current_trial.trial_id]
             )[: self._current_n_elites]
-            param_values = param_values[best_objectives, cat_indices]
+            
+            param_values = param.values[best_objectives[:, np.newaxis], cat_indices]
 
             noise = self.rng.normal(loc=0.0, scale=self._current_noise)
 
@@ -184,17 +324,21 @@ class MARSOpt:
     @staticmethod
     def reflect_at_boundaries(x: float, low: float = 0.0, high: float = 1.0) -> float:
         """
-        Reflects values that exceed boundaries [low, high] back into the valid range.
-        For values > high: reflects back half of the excess
-        For values < low: reflects back half of the deficit
-        
-        Args:
-            x: Input value that may exceed [low, high] bounds
-            low: Lower boundary of valid range
-            high: Upper boundary of valid range
-        
-        Returns:
-            Float value reflected back into [low, high] range
+        Reflects values exceeding boundaries back into a valid range.
+
+        Parameters
+        ----------
+        x : float
+            Input value.
+        low : float, optional
+            Lower boundary (default is 0.0).
+        high : float, optional
+            Upper boundary (default is 1.0).
+
+        Returns
+        -------
+        float
+            Value reflected into the valid range.
         """
         if x > high:
             excess = x - high
@@ -205,21 +349,54 @@ class MARSOpt:
         else:
             return x
 
-    def objective_wrapper(self, objective_function, iteration):
+    def objective_wrapper(
+        self, objective_function: Callable[[Trial], float], iteration: int
+    ) -> float:
+        """
+        Wraps the objective function call within a trial.
+
+        Parameters
+        ----------
+        objective_function : Callable[[Trial], float]
+            The objective function to evaluate.
+        iteration : int
+            The current iteration number.
+
+        Returns
+        -------
+        float
+            The computed objective value.
+        """
         self.current_trial = Trial(self, iteration)
-        obj_value = objective_function(self.current_trial)
+        obj_value: float = objective_function(self.current_trial)
         return obj_value
 
-    def optimize(self, objective_function: callable, n_trial: int ):
-        """Run optimization loop"""
+    def optimize(
+        self, objective_function: Callable[[Trial], float], n_trial: int
+    ) -> tuple:
+        """
+        Runs the optimization loop.
+
+        Parameters
+        ----------
+        objective_function : Callable[[Trial], float]
+            The function to optimize.
+        n_trial : int
+            The number of trials.
+
+        Returns
+        -------
+        tuple
+            Best parameters found and the corresponding objective value.
+        """
         best_value = float("inf")
         best_params = None
-        
+
         self.max_iter = n_trial
         self.final_noise = 1.0 / n_trial
         self.objective_values = np.empty(shape=(n_trial,), dtype=np.float64)
         self._elite_scale: float = 2 * np.sqrt(n_trial)
-        
+
         for iteration in range(self.max_iter):
             if iteration >= self.n_init_points:
                 self.progress = iteration / self.max_iter
