@@ -33,7 +33,9 @@ class Trial:
         self.trial_id = trial_id
         self.params: Dict[str, Any] = {}
 
-    def suggest_float(self, name: str, low: float, high: float, log: bool = False) -> float:
+    def suggest_float(
+        self, name: str, low: float, high: float, log: bool = False
+    ) -> float:
         """
         Suggests a floating-point parameter value.
 
@@ -128,8 +130,9 @@ class MARSOpt:
         self,
         n_init_points: int = 10,
         random_state: Optional[int] = None,
-        initial_noise: float = 0.20,
-        min_temperature: float = 0.20,
+        initial_noise: float = 0.2,
+        min_temperature: float = 0.5,
+        verbose: bool = True,
     ) -> None:
         """
         Initializes the optimizer.
@@ -224,21 +227,25 @@ class MARSOpt:
 
                 if log:
                     log_base = np.log(base_value)
-                    log_range = np.log(high) - np.log(low)
+                    log_high = np.log(high)
+                    log_low = np.log(low)
+                    log_range = log_high - log_low
                     noise = self.rng.normal(
                         loc=0.0, scale=self._current_noise * log_range
                     )
-                    value = np.exp(log_base + noise)
+
+                    value = np.exp(
+                        self.reflect_at_boundaries(log_base + noise, log_low, log_high)
+                    )
+
                 else:
                     # Apply noise directly
                     param_range = high - low
                     noise = self.rng.normal(
                         loc=0.0, scale=self._current_noise * param_range
                     )
-                    value = base_value + noise
 
-                # Clip to bounds
-                value = self.reflect_at_boundaries(value, low, high)
+                    value = self.reflect_at_boundaries(base_value + noise, low, high)
 
             if param_type == int:
                 # probabilistic rounding
@@ -285,7 +292,7 @@ class MARSOpt:
             best_objectives = np.argsort(
                 self.objective_values[: self.current_trial.trial_id]
             )[: self._current_n_elites]
-            
+
             param_values = param.values[best_objectives[:, np.newaxis], cat_indices]
 
             noise = self.rng.normal(loc=0.0, scale=self._current_noise)
@@ -407,7 +414,6 @@ class MARSOpt:
                     self.initial_noise - self.final_noise
                 ) * (1 + np.cos(np.pi * self.progress))
 
-            # self._obj_arg_sort = np.argsort(obj_value[: iteration + 1])
             obj_value = self.objective_wrapper(objective_function, iteration)
 
             self.objective_values[iteration] = obj_value
@@ -417,3 +423,24 @@ class MARSOpt:
                 best_params = self.current_trial.params.copy()
 
         return best_params, best_value
+
+    @property
+    def best_trial(self) -> dict:
+        final_iteration = int((self.progress * self.max_iter) + 1)
+        best_iteration = int(np.argmin(self.objective_values[:final_iteration]))
+        best_trial_dict = dict(iteration=best_iteration)
+
+        for param_name, param in self.parameters.items():
+            if param.type == int:
+                value = int(param.values[best_iteration])
+
+            elif param.type == float:
+                value = float(param.values[best_iteration])
+
+            elif param.type == list:
+                value = param.category_indexer.get_strings(
+                    np.argmax(param.values[best_iteration])
+                )
+            best_trial_dict.update({param_name: value})
+
+        return best_trial_dict
