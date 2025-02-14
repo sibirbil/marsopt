@@ -1,61 +1,89 @@
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from time import perf_counter
 
 from .parameters import Parameter
+from functools import lru_cache
 
 class Trial:
     """
     Represents a single trial in the optimization process.
-
-    Attributes
-    ----------
-    optimizer : MARSOpt
-        The optimizer instance that manages this trial.
-    trial_id : int
-        The unique identifier of this trial.
-    params : Dict[str, Any]
-        Dictionary storing suggested parameter values for this trial.
     """
-
     def __init__(self, optimizer: "MARSOpt", trial_id: int) -> None:
-        """
-        Initializes a Trial instance.
-
-        Parameters
-        ----------
-        optimizer : MARSOpt
-            The optimizer managing this trial.
-        trial_id : int
-            The unique identifier for this trial.
-        """
         self.optimizer = optimizer
         self.trial_id = trial_id
         self.params: Dict[str, Any] = {}
+        self._validated_params = set()
 
-    def suggest_float(
-        self, name: str, low: float, high: float, log: bool = False
-    ) -> float:
+    def __repr__(self) -> str:
+        return f"Trial(trial_id={self.trial_id}, params={self.params})"
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _validate_numerical_cached(name: str, low: Any, high: Any, expected_type: type, log: bool) -> None:
+        """Cached validation for numerical parameters."""
+        # Float için hem int hem float kabul edilir
+        if expected_type is float:
+            if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
+                raise TypeError(f"Parameter '{name}': 'low' and 'high' must be numeric, got {type(low)} and {type(high)}")
+        # Int için sadece int kabul edilir
+        elif expected_type is int:
+            if not (isinstance(low, int) and isinstance(high, int)):
+                raise TypeError(f"Parameter '{name}': 'low' and 'high' must be integers, got {type(low)} and {type(high)}")
+        else:
+            raise TypeError(f"Parameter '{name}': Unsupported type {expected_type}")
+
+        # low ve high değerlerini aynı tipe çevir (float durumu için)
+        low = expected_type(low)
+        high = expected_type(high)
+        
+        if low >= high:
+            raise ValueError(f"Parameter '{name}': 'low' must be less than 'high' (got {low} >= {high})")
+        if log and (low <= 0 or high <= 0):
+            raise ValueError(f"Parameter '{name}': 'low' and 'high' must be positive when 'log' is True (got {low}, {high})")
+
+    def _validate_numerical(self, name: str, low: Any, high: Any, expected_type: type, log: bool) -> None:
+        """Validates numerical parameters using cached results."""
+        if not isinstance(name, str):
+            raise TypeError(f"Parameter name must be a string, got {type(name)}")
+            
+        self._validate_numerical_cached(name, low, high, expected_type, log)
+        self._validated_params.add(name)
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _validate_categorical_cached(name: str, categories_tuple: Tuple[Any, ...]) -> None:
+        """Cached validation for categorical parameters."""
+        if len(categories_tuple) < 2:
+            raise ValueError(f"Parameter '{name}': 'categories' must contain at least two elements")
+            
+        if len(set(categories_tuple)) != len(categories_tuple):
+            raise ValueError(f"Parameter '{name}': 'categories' contains duplicate values")
+            
+        try:
+            _ = categories_tuple[0]
+        except (TypeError, IndexError):
+            raise TypeError(f"Parameter '{name}': 'categories' must be indexable, got {type(categories_tuple)} with non-indexable elements")
+
+    def _validate_categorical(self, name: str, categories: List[Any]) -> None:
+        """Validates categorical parameters using cached results."""
+        if not isinstance(name, str):
+            raise TypeError(f"Parameter name must be a string, got {type(name)}")
+            
+        if not isinstance(categories, list):
+            raise TypeError(f"Parameter '{name}': 'categories' must be a list, got {type(categories)}")
+            
+        categories_tuple = tuple(categories)
+        self._validate_categorical_cached(name, categories_tuple)
+        self._validated_params.add(name)
+
+    def suggest_float(self, name: str, low: float, high: float, log: bool = False) -> float:
         """
         Suggests a floating-point parameter value.
-
-        Parameters
-        ----------
-        name : str
-            The name of the parameter.
-        low : float
-            The lower bound for the parameter.
-        high : float
-            The upper bound for the parameter.
-        log : bool, optional
-            Whether to sample in logarithmic scale (default is False).
-
-        Returns
-        -------
-        float
-            The suggested float value.
+        Accepts both int and float inputs for low and high.
         """
+        self._validate_numerical(name, low, high, float, log)
         value = self.optimizer._suggest_numerical(name, low, high, float, log)
         self.params[name] = value
         return value
@@ -63,48 +91,19 @@ class Trial:
     def suggest_int(self, name: str, low: int, high: int, log: bool = False) -> int:
         """
         Suggests an integer parameter value.
-
-        Parameters
-        ----------
-        name : str
-            The name of the parameter.
-        low : int
-            The lower bound for the parameter.
-        high : int
-            The upper bound for the parameter.
-        log : bool, optional
-            Whether to sample in logarithmic scale (default is False).
-
-        Returns
-        -------
-        int
-            The suggested integer value.
+        Only accepts integer inputs for low and high.
         """
+        self._validate_numerical(name, low, high, int, log)
         value = self.optimizer._suggest_numerical(name, low, high, int, log)
         self.params[name] = value
         return value
 
     def suggest_categorical(self, name: str, categories: List[Any]) -> Any:
-        """
-        Suggests a categorical parameter value.
-
-        Parameters
-        ----------
-        name : str
-            The name of the parameter.
-        categories : List[Any]
-            A list of possible categorical values.
-
-        Returns
-        -------
-        Any
-            The suggested categorical value.
-        """
+        """Suggests a categorical parameter value."""
+        self._validate_categorical(name, categories)
         value = self.optimizer._suggest_categorical(name, categories)
         self.params[name] = value
         return value
-
-
 class MARSOpt:
     """
     A global optimization algorithm that searches the parameter space.
@@ -165,6 +164,13 @@ class MARSOpt:
         self._current_n_elites: float = None
         self._obj_arg_sort: NDArray = None
 
+    def __repr__(self) -> str:
+        return (
+            f"MARSOpt(n_init_points={self.n_init_points}, "
+            f"initial_noise={self.initial_noise}, min_temperature={self.min_temperature}, "
+            f"verbose={self.verbose})"
+        )
+
     def _suggest_numerical(
         self, name: str, low: float, high: float, param_type: type, log: bool
     ) -> float:
@@ -222,7 +228,7 @@ class MARSOpt:
                 sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
                 values_masked = param_values[sorted_indices]
                 base_value = self.rng.choice(values_masked[: self._current_n_elites])
-                
+
                 if log:
                     log_base = np.log(base_value)
                     log_high = np.log(high)
@@ -274,6 +280,7 @@ class MARSOpt:
             The suggested categorical value.
         """
         param = self.parameters.get(name)
+        trial_id = self.current_trial.trial_id
 
         if param is None:
             param = Parameter(name=name)
@@ -282,11 +289,12 @@ class MARSOpt:
 
         cat_indices = param.category_indexer.get_indices(categories)
 
-        if self.current_trial.trial_id < self.n_init_points:
+        if trial_id < self.n_init_points:
             category_idx = self.rng.choice(cat_indices)
+
         else:
             sorted_trials = self._obj_arg_sort[: self._current_n_elites]
-            
+
             # Get parameter values for the best trials
             param_values = param.values[sorted_trials[:, np.newaxis], cat_indices]
 
@@ -303,14 +311,13 @@ class MARSOpt:
                     chosen_elites_with_noise[i]
                 )
 
-            temp = max(
+            temp = 1.0 / max(
                 self.min_temperature,
                 self.progress,
             )
 
             exps = np.exp(
-                chosen_elites_with_noise / temp
-                - np.max(chosen_elites_with_noise) / temp
+                (chosen_elites_with_noise - np.max(chosen_elites_with_noise)) * temp
             )
             probs = exps / exps.sum()
 
@@ -319,7 +326,7 @@ class MARSOpt:
         result = np.zeros(len(param.category_indexer), dtype=np.float64)
         result[category_idx] = 1.0
 
-        param.values[self.current_trial.trial_id, :] = result
+        param.values[trial_id, :] = result
 
         return param.category_indexer.get_strings(category_idx)
 
@@ -369,6 +376,15 @@ class MARSOpt:
         tuple
             Best parameters found and the corresponding objective value.
         """
+        if not isinstance(n_trial, int):
+            raise TypeError("n_trial must be an integer.")
+
+        if n_trial <= 0:
+            raise ValueError("n_trial must be a positive integer.")
+
+        if not callable(objective_function):
+            raise TypeError("objective_function must be a callable function.")
+
         best_value = float("inf")
         best_params = None
 
@@ -389,7 +405,7 @@ class MARSOpt:
                 self._current_noise = self.final_noise + 0.5 * (
                     self.initial_noise - self.final_noise
                 ) * (1 + np.cos(np.pi * self.progress))
-                
+
                 self._obj_arg_sort = np.argsort(self.objective_values[:iteration])
 
             self.current_trial = Trial(self, iteration)
@@ -421,27 +437,33 @@ class MARSOpt:
     def best_trial(self) -> dict:
         """
         Returns the best trial's parameters and iteration number.
-        
+
         Returns
         -------
         dict
             Dictionary containing the iteration number and parameter values of the best trial.
         """
         best_iteration = int(self._obj_arg_sort[0])
-        
+
         # Pre-allocate dictionary with known size
         best_trial_dict = {
-            'iteration': best_iteration,
+            "iteration": best_iteration,
             **{
                 param_name: (
-                    int(param.values[best_iteration]) if param.type == int
-                    else float(param.values[best_iteration]) if param.type == float
-                    else param.category_indexer.get_strings(np.argmax(param.values[best_iteration]))
+                    int(param.values[best_iteration])
+                    if param.type == int
+                    else (
+                        float(param.values[best_iteration])
+                        if param.type == float
+                        else param.category_indexer.get_strings(
+                            np.argmax(param.values[best_iteration])
+                        )
+                    )
                 )
                 for param_name, param in self.parameters.items()
-            }
+            },
         }
-        
+
         return best_trial_dict
 
     @property
@@ -449,7 +471,7 @@ class MARSOpt:
         """
         Returns the complete history of all trials as a list of dictionaries.
         Each dictionary represents one trial iteration with its parameters and results.
-        
+
         Returns
         -------
         List[dict]
@@ -459,17 +481,19 @@ class MARSOpt:
             - trial_time: Execution time of the trial
             - parameters: Dictionary of parameter values for that trial
         """
-        final_iteration = min(int((self.progress * self.n_trial) + 1), len(self.objective_values))
+        final_iteration = min(
+            int((self.progress * self.n_trial) + 1), len(self.objective_values)
+        )
         history = []
-        
+
         for iteration in range(final_iteration):
             trial_dict = {
-                'iteration': iteration,
-                'objective_value': float(self.objective_values[iteration]),
-                'trial_time': float(self.trial_times[iteration]),
-                'parameters': {}
+                "iteration": iteration,
+                "objective_value": float(self.objective_values[iteration]),
+                "trial_time": float(self.trial_times[iteration]),
+                "parameters": {},
             }
-            
+
             # Add parameter values for this iteration
             for param_name, param in self.parameters.items():
                 if param.type == int:
@@ -480,9 +504,8 @@ class MARSOpt:
                     value = param.category_indexer.get_strings(
                         np.argmax(param.values[iteration])
                     )
-                trial_dict['parameters'][param_name] = value
-                
+                trial_dict["parameters"][param_name] = value
+
             history.append(trial_dict)
-        
+
         return history
-            

@@ -22,7 +22,7 @@ class CategoryIndexer:
         self.str_to_idx = {}
         self.next_idx = 0
 
-    def get_indices(self, strings: List[str]) -> List[int]:
+    def get_indices(self, strings: List[str]) -> NDArray:
         """
         Converts a list of category names to their corresponding integer indices.
 
@@ -42,7 +42,7 @@ class CategoryIndexer:
                 self.str_to_idx[s] = self.next_idx
                 self.next_idx += 1
             result.append(self.str_to_idx[s])
-        return result
+        return np.array(result)
 
     def get_strings(self, indice: int) -> str:
         """
@@ -60,13 +60,6 @@ class CategoryIndexer:
         """
         idx_to_str = {v: k for k, v in self.str_to_idx.items()}
         return idx_to_str[indice]
-
-    def reset(self) -> None:
-        """
-        Resets the category indexer by clearing all stored indices.
-        """
-        self.str_to_idx.clear()
-        self.next_idx = 0
 
     def __len__(self) -> int:
         """
