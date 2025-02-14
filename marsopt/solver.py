@@ -205,7 +205,7 @@ class MARSOpt:
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._obj_arg_sort: NDArray = None
-        
+
         self.best_value: int = None
 
     def __repr__(self) -> str:
@@ -330,7 +330,7 @@ class MARSOpt:
             param = Parameter(name=name)
             param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
             self.parameters[name] = param
-            
+
         else:
             param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
 
@@ -358,9 +358,11 @@ class MARSOpt:
                     chosen_elites_with_noise[i]
                 )
 
-            temp = 1.0 / max(
-                self.min_temperature,
-                self.progress,
+            temp = 1.0 / (
+                self.min_temperature
+                + 0.5
+                * (1.0 - self.min_temperature)
+                * (1 + np.cos(np.pi * self.progress))
             )
 
             exps = np.exp(
