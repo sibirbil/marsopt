@@ -1,8 +1,9 @@
 from typing import Dict, List, Any, Optional, Callable
 import numpy as np
 from numpy.typing import NDArray
-from .parameters import Parameter
+from time import perf_counter
 
+from .parameters import Parameter
 
 class Trial:
     """
@@ -155,7 +156,9 @@ class MARSOpt:
 
         self.parameters: Dict[str, Parameter] = {}
         self.objective_values: NDArray = None
+        self.trial_times: NDArray = None
         self.current_trial: Optional[Trial] = None
+        self.verbose = verbose
 
         self._progress: float = None
         self._current_noise: float = None
@@ -192,9 +195,7 @@ class MARSOpt:
             param = Parameter(
                 name=name,
             )
-            param.set_values(
-                max_iter=self.max_iter, param_type_or_categories=param_type
-            )
+            param.set_values(max_iter=self.n_trial, param_type_or_categories=param_type)
             self.parameters[name] = param
 
         if self.current_trial.trial_id < self.n_init_points:
@@ -279,9 +280,7 @@ class MARSOpt:
 
         if param is None:
             param = Parameter(name=name)
-            param.set_values(
-                max_iter=self.max_iter, param_type_or_categories=categories
-            )
+            param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
             self.parameters[name] = param
 
         cat_indices = param.category_indexer.get_indices(categories)
@@ -356,28 +355,6 @@ class MARSOpt:
         else:
             return x
 
-    def objective_wrapper(
-        self, objective_function: Callable[[Trial], float], iteration: int
-    ) -> float:
-        """
-        Wraps the objective function call within a trial.
-
-        Parameters
-        ----------
-        objective_function : Callable[[Trial], float]
-            The objective function to evaluate.
-        iteration : int
-            The current iteration number.
-
-        Returns
-        -------
-        float
-            The computed objective value.
-        """
-        self.current_trial = Trial(self, iteration)
-        obj_value: float = objective_function(self.current_trial)
-        return obj_value
-
     def optimize(
         self, objective_function: Callable[[Trial], float], n_trial: int
     ) -> tuple:
@@ -399,14 +376,17 @@ class MARSOpt:
         best_value = float("inf")
         best_params = None
 
-        self.max_iter = n_trial
+        self.n_trial = n_trial
         self.final_noise = 1.0 / n_trial
         self.objective_values = np.empty(shape=(n_trial,), dtype=np.float64)
         self._elite_scale: float = 2 * np.sqrt(n_trial)
+        self.trial_times = np.empty(shape=(n_trial,), dtype=np.float64)
 
-        for iteration in range(self.max_iter):
+        for iteration in range(self.n_trial):
+            start_time = perf_counter()
+
             if iteration >= self.n_init_points:
-                self.progress = iteration / self.max_iter
+                self.progress = iteration / self.n_trial
                 self._current_n_elites = max(
                     1, round(self._elite_scale * self.progress * (1 - self.progress))
                 )
@@ -414,7 +394,22 @@ class MARSOpt:
                     self.initial_noise - self.final_noise
                 ) * (1 + np.cos(np.pi * self.progress))
 
-            obj_value = self.objective_wrapper(objective_function, iteration)
+            self.current_trial = Trial(self, iteration)
+            obj_value: float = objective_function(self.current_trial)
+
+            self.trial_times[iteration] = perf_counter() - start_time
+
+            if self.verbose:
+                param_str = ", ".join(
+                    [
+                        f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
+                        for k, v in self.current_trial.params.items()
+                    ]
+                )
+                print(
+                    f"[Trial {iteration+1}/{n_trial}] {param_str} -> objective={obj_value:.4f} "
+                    f"(time={self.trial_times[iteration]:.2f}s)"
+                )
 
             self.objective_values[iteration] = obj_value
 
@@ -426,21 +421,71 @@ class MARSOpt:
 
     @property
     def best_trial(self) -> dict:
-        final_iteration = int((self.progress * self.max_iter) + 1)
+        """
+        Returns the best trial's parameters and iteration number.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing the iteration number and parameter values of the best trial.
+        """
+        final_iteration = min(int((self.progress * self.n_trial) + 1), len(self.objective_values))
         best_iteration = int(np.argmin(self.objective_values[:final_iteration]))
-        best_trial_dict = dict(iteration=best_iteration)
-
-        for param_name, param in self.parameters.items():
-            if param.type == int:
-                value = int(param.values[best_iteration])
-
-            elif param.type == float:
-                value = float(param.values[best_iteration])
-
-            elif param.type == list:
-                value = param.category_indexer.get_strings(
-                    np.argmax(param.values[best_iteration])
+        
+        # Pre-allocate dictionary with known size
+        best_trial_dict = {
+            'iteration': best_iteration,
+            **{
+                param_name: (
+                    int(param.values[best_iteration]) if param.type == int
+                    else float(param.values[best_iteration]) if param.type == float
+                    else param.category_indexer.get_strings(np.argmax(param.values[best_iteration]))
                 )
-            best_trial_dict.update({param_name: value})
-
+                for param_name, param in self.parameters.items()
+            }
+        }
+        
         return best_trial_dict
+
+    @property
+    def trial_history(self) -> List[dict]:
+        """
+        Returns the complete history of all trials as a list of dictionaries.
+        Each dictionary represents one trial iteration with its parameters and results.
+        
+        Returns
+        -------
+        List[dict]
+            List of dictionaries where each dictionary contains:
+            - iteration: Trial iteration number
+            - objective_value: Objective function value
+            - trial_time: Execution time of the trial
+            - parameters: Dictionary of parameter values for that trial
+        """
+        final_iteration = min(int((self.progress * self.n_trial) + 1), len(self.objective_values))
+        history = []
+        
+        for iteration in range(final_iteration):
+            trial_dict = {
+                'iteration': iteration,
+                'objective_value': float(self.objective_values[iteration]),
+                'trial_time': float(self.trial_times[iteration]),
+                'parameters': {}
+            }
+            
+            # Add parameter values for this iteration
+            for param_name, param in self.parameters.items():
+                if param.type == int:
+                    value = int(param.values[iteration])
+                elif param.type == float:
+                    value = float(param.values[iteration])
+                else:  # categorical parameters
+                    value = param.category_indexer.get_strings(
+                        np.argmax(param.values[iteration])
+                    )
+                trial_dict['parameters'][param_name] = value
+                
+            history.append(trial_dict)
+        
+        return history
+            
