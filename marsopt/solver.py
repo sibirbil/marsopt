@@ -255,24 +255,14 @@ class MARSOpt:
             self.parameters[name] = param
 
         if self.current_trial.trial_id < self.n_init_points:
-            if log:
-                log_low = np.log(low)
-                log_high = np.log(high)
-                value = np.exp(self.rng.uniform(log_low, log_high))
-            else:
-                value = self.rng.uniform(low, high)
+            value = self._sample_value(low, high, log)
 
         else:
             param_values = param.values[: self.current_trial.trial_id]
             range_mask = (param_values >= low) & (param_values <= high)
 
             if not np.any(range_mask):
-                if log:
-                    log_low = np.log(low)
-                    log_high = np.log(high)
-                    value = np.exp(self.rng.uniform(log_low, log_high))
-                else:
-                    value = self.rng.uniform(low, high)
+                value = self._sample_value(low, high, log)
 
             else:
                 sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
@@ -412,6 +402,12 @@ class MARSOpt:
             return low + (deficit / 2.0)
         else:
             return x
+        
+    def _sample_value(self, low: float, high: float, log: bool) -> float:
+        if log:
+            return np.exp(self.rng.uniform(np.log(low), np.log(high)))
+        else:
+            return self.rng.uniform(low, high)
 
     def optimize(
         self, objective_function: Callable[[Trial], float], n_trials: int
