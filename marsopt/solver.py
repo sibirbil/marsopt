@@ -6,10 +6,15 @@ from time import perf_counter
 from .parameters import Parameter
 from functools import lru_cache
 
+
 class Trial:
+    __slots__ = ["optimizer", "trial_id", "params", "_validated_params"]
+    
+    
     """
     Represents a single trial in the optimization process.
     """
+
     def __init__(self, optimizer: "MARSOpt", trial_id: int) -> None:
         self.optimizer = optimizer
         self.trial_id = trial_id
@@ -21,64 +26,88 @@ class Trial:
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _validate_numerical_cached(name: str, low: Any, high: Any, expected_type: type, log: bool) -> None:
+    def _validate_numerical_cached(
+        name: str, low: Any, high: Any, expected_type: type, log: bool
+    ) -> None:
         """Cached validation for numerical parameters."""
         # Float için hem int hem float kabul edilir
         if expected_type is float:
             if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
-                raise TypeError(f"Parameter '{name}': 'low' and 'high' must be numeric, got {type(low)} and {type(high)}")
+                raise TypeError(
+                    f"Parameter '{name}': 'low' and 'high' must be numeric, got {type(low)} and {type(high)}"
+                )
         # Int için sadece int kabul edilir
         elif expected_type is int:
             if not (isinstance(low, int) and isinstance(high, int)):
-                raise TypeError(f"Parameter '{name}': 'low' and 'high' must be integers, got {type(low)} and {type(high)}")
+                raise TypeError(
+                    f"Parameter '{name}': 'low' and 'high' must be integers, got {type(low)} and {type(high)}"
+                )
         else:
             raise TypeError(f"Parameter '{name}': Unsupported type {expected_type}")
 
         # low ve high değerlerini aynı tipe çevir (float durumu için)
         low = expected_type(low)
         high = expected_type(high)
-        
-        if low >= high:
-            raise ValueError(f"Parameter '{name}': 'low' must be less than 'high' (got {low} >= {high})")
-        if log and (low <= 0 or high <= 0):
-            raise ValueError(f"Parameter '{name}': 'low' and 'high' must be positive when 'log' is True (got {low}, {high})")
 
-    def _validate_numerical(self, name: str, low: Any, high: Any, expected_type: type, log: bool) -> None:
+        if low >= high:
+            raise ValueError(
+                f"Parameter '{name}': 'low' must be less than 'high' (got {low} >= {high})"
+            )
+        if log and (low <= 0 or high <= 0):
+            raise ValueError(
+                f"Parameter '{name}': 'low' and 'high' must be positive when 'log' is True (got {low}, {high})"
+            )
+
+    def _validate_numerical(
+        self, name: str, low: Any, high: Any, expected_type: type, log: bool
+    ) -> None:
         """Validates numerical parameters using cached results."""
         if not isinstance(name, str):
             raise TypeError(f"Parameter name must be a string, got {type(name)}")
-            
+
         self._validate_numerical_cached(name, low, high, expected_type, log)
         self._validated_params.add(name)
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _validate_categorical_cached(name: str, categories_tuple: Tuple[Any, ...]) -> None:
+    def _validate_categorical_cached(
+        name: str, categories_tuple: Tuple[Any, ...]
+    ) -> None:
         """Cached validation for categorical parameters."""
         if len(categories_tuple) < 2:
-            raise ValueError(f"Parameter '{name}': 'categories' must contain at least two elements")
-            
+            raise ValueError(
+                f"Parameter '{name}': 'categories' must contain at least two elements"
+            )
+
         if len(set(categories_tuple)) != len(categories_tuple):
-            raise ValueError(f"Parameter '{name}': 'categories' contains duplicate values")
-            
+            raise ValueError(
+                f"Parameter '{name}': 'categories' contains duplicate values"
+            )
+
         try:
             _ = categories_tuple[0]
         except (TypeError, IndexError):
-            raise TypeError(f"Parameter '{name}': 'categories' must be indexable, got {type(categories_tuple)} with non-indexable elements")
+            raise TypeError(
+                f"Parameter '{name}': 'categories' must be indexable, got {type(categories_tuple)} with non-indexable elements"
+            )
 
     def _validate_categorical(self, name: str, categories: List[Any]) -> None:
         """Validates categorical parameters using cached results."""
         if not isinstance(name, str):
             raise TypeError(f"Parameter name must be a string, got {type(name)}")
-            
+
         if not isinstance(categories, list):
-            raise TypeError(f"Parameter '{name}': 'categories' must be a list, got {type(categories)}")
-            
+            raise TypeError(
+                f"Parameter '{name}': 'categories' must be a list, got {type(categories)}"
+            )
+
         categories_tuple = tuple(categories)
         self._validate_categorical_cached(name, categories_tuple)
         self._validated_params.add(name)
 
-    def suggest_float(self, name: str, low: float, high: float, log: bool = False) -> float:
+    def suggest_float(
+        self, name: str, low: float, high: float, log: bool = False
+    ) -> float:
         """
         Suggests a floating-point parameter value.
         Accepts both int and float inputs for low and high.
@@ -104,6 +133,8 @@ class Trial:
         value = self.optimizer._suggest_categorical(name, categories)
         self.params[name] = value
         return value
+
+
 class MARSOpt:
     """
     A global optimization algorithm that searches the parameter space.

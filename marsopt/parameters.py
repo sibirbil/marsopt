@@ -4,6 +4,8 @@ from typing import List, Union, Dict
 
 
 class CategoryIndexer:
+    __slots__ = ["str_to_idx", "idx_to_str", "next_idx"]
+    
     """
     A helper class for managing categorical parameter indexing.
 
