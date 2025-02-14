@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Union
+from typing import List, Union, Dict
 
 
 class CategoryIndexer:
@@ -9,22 +9,25 @@ class CategoryIndexer:
 
     Attributes
     ----------
-    str_to_idx : dict
-        A dictionary mapping category names (strings) to unique integer indices.
+    str_to_idx : Dict[str, int]
+        A dictionary mapping category names to unique integer indices.
+    idx_to_str : Dict[int, str]
+        A dictionary mapping integer indices back to category names.
     next_idx : int
         The next available index for a new category.
     """
 
     def __init__(self) -> None:
         """
-        Initializes the category indexer.
+        Initializes the category indexer with bidirectional mappings.
         """
-        self.str_to_idx = {}
-        self.next_idx = 0
+        self.str_to_idx: Dict[str, int] = {}
+        self.idx_to_str: Dict[int, str] = {}
+        self.next_idx: int = 0
 
     def get_indices(self, strings: List[str]) -> NDArray:
         """
-        Converts a list of category names to their corresponding integer indices.
+        Efficiently converts a list of category names to their corresponding integer indices.
 
         Parameters
         ----------
@@ -33,33 +36,33 @@ class CategoryIndexer:
 
         Returns
         -------
-        List[int]
-            List of corresponding integer indices.
+        NDArray
+            Array of corresponding integer indices.
         """
-        result = []
-        for s in strings:
+        indices = np.empty(len(strings), dtype=np.int32)
+        for i, s in enumerate(strings):
             if s not in self.str_to_idx:
                 self.str_to_idx[s] = self.next_idx
+                self.idx_to_str[self.next_idx] = s
                 self.next_idx += 1
-            result.append(self.str_to_idx[s])
-        return np.array(result)
+            indices[i] = self.str_to_idx[s]
+        return indices
 
     def get_strings(self, indice: int) -> str:
         """
-        Converts a list of integer indices back to their corresponding category names.
+        Efficiently converts an integer index to its corresponding category name.
 
         Parameters
         ----------
-        indices : List[int]
-            List of category indices.
+        indice : int
+            Category index.
 
         Returns
         -------
-        List[str]
-            List of corresponding category names.
+        str
+            Corresponding category name.
         """
-        idx_to_str = {v: k for k, v in self.str_to_idx.items()}
-        return idx_to_str[indice]
+        return self.idx_to_str[indice]
 
     def __len__(self) -> int:
         """
