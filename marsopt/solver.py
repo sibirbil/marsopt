@@ -147,8 +147,6 @@ class MARSOpt:
         Number of initial random trials before optimization.
     initial_noise : float
         Initial noise level in parameter selection.
-    min_temperature : float
-        Minimum temperature for simulated annealing behavior.
     rng : np.random.Generator
         Random number generator for reproducibility.
     parameters : Dict[str, Parameter]
@@ -164,7 +162,6 @@ class MARSOpt:
         n_init_points: int = 10,
         random_state: Optional[int] = None,
         initial_noise: float = 0.2,
-        min_temperature: float = 0.5,
         direction: Union[str] = "minimize",
         verbose: bool = True,
     ) -> None:
@@ -179,22 +176,18 @@ class MARSOpt:
             Seed for reproducibility (default is None).
         initial_noise : float, optional
             Initial noise level (default is 0.20).
-        min_temperature : float, optional
-            Minimum temperature for simulated annealing (default is 0.20).
         """
 
         self._validate_init_params(
             n_init_points=n_init_points,
             random_state=random_state,
             initial_noise=initial_noise,
-            min_temperature=min_temperature,
             direction=direction,
             verbose=verbose,
         )
 
         self.n_init_points = n_init_points
         self.initial_noise = initial_noise
-        self.min_temperature = min_temperature
         self.rng = np.random.default_rng(random_state)
         self.direction = direction
 
@@ -217,7 +210,7 @@ class MARSOpt:
     def __repr__(self) -> str:
         return (
             f"MARSOpt(n_init_points={self.n_init_points}, "
-            f"initial_noise={self.initial_noise}, min_temperature={self.min_temperature}, "
+            f"initial_noise={self.initial_noise}, "
             f"verbose={self.verbose})"
         )
 
@@ -359,9 +352,9 @@ class MARSOpt:
                 )
 
             temp = 1.0 / (
-                self.min_temperature
+                self.final_noise
                 + 0.5
-                * (1.0 - self.min_temperature)
+                * (1.0 - self.final_noise)
                 * (1 + np.cos(np.pi * self.progress))
             )
 
@@ -494,7 +487,6 @@ class MARSOpt:
         n_init_points: Any,
         random_state: Any,
         initial_noise: Any,
-        min_temperature: Any,
         direction: Any,
         verbose: Any,
     ) -> None:
@@ -509,8 +501,6 @@ class MARSOpt:
             Random seed value
         initial_noise : Any
             Initial noise level
-        min_temperature : Any
-            Minimum temperature for simulated annealing
         direction : Any
             Optimization direction ('minimize' or 'maximize')
         verbose : Any
@@ -545,16 +535,6 @@ class MARSOpt:
         if initial_noise <= 0 or initial_noise > 1:
             raise ValueError(
                 f"initial_noise must be between 0 and 1, got {initial_noise}"
-            )
-
-        # min_temperature validation
-        if not isinstance(min_temperature, (int, float)):
-            raise TypeError(
-                f"min_temperature must be a number, got {type(min_temperature)}"
-            )
-        if min_temperature <= 0 or min_temperature > 1:
-            raise ValueError(
-                f"min_temperature must be between 0 and 1, got {min_temperature}"
             )
 
         # direction validation
