@@ -4,6 +4,9 @@ from numpy.typing import NDArray
 from time import perf_counter
 
 from .parameters import Parameter
+from .logger import OptimizationLogger
+import logging
+
 from functools import lru_cache
 
 
@@ -205,6 +208,9 @@ class MARSOpt:
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._obj_arg_sort: NDArray = None
+        self._logger = OptimizationLogger(
+            name="MARSOpt", level=logging.INFO if verbose else logging.WARNING
+        ).logger
 
         self.best_value: int = None
 
@@ -466,15 +472,14 @@ class MARSOpt:
             self.trial_times[iteration] = perf_counter() - start_time
 
             if self.verbose:
-                param_str = ", ".join(
-                    [
-                        f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
-                        for k, v in self.current_trial.params.items()
-                    ]
-                )
-                print(
-                    f"[Trial {iteration+1}/{n_trial}] {param_str} -> objective={obj_value:.4f} "
-                    f"(time={self.trial_times[iteration]:.2f}s)"
+                self._logger.info(
+                    "",
+                    extra={
+                        'trial_info': f"[Trial {iteration+1}/{n_trial}]",
+                        'params': self.current_trial.params,
+                        'objective': obj_value,
+                        'time': self.trial_times[iteration]
+                    }
                 )
 
             self.objective_values[iteration] = obj_value
