@@ -219,13 +219,10 @@ class MARSOpt:
                     value = self.rng.uniform(low, high)
 
             else:
-                objective_masked = self.objective_values[: self.current_trial.trial_id][
-                    range_mask
-                ]
-                best_objectives = np.argsort(objective_masked)
-                values_masked = param_values[range_mask][best_objectives]
+                sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
+                values_masked = param_values[sorted_indices]
                 base_value = self.rng.choice(values_masked[: self._current_n_elites])
-
+                
                 if log:
                     log_base = np.log(base_value)
                     log_high = np.log(high)
@@ -288,11 +285,10 @@ class MARSOpt:
         if self.current_trial.trial_id < self.n_init_points:
             category_idx = self.rng.choice(cat_indices)
         else:
-            best_objectives = np.argsort(
-                self.objective_values[: self.current_trial.trial_id]
-            )[: self._current_n_elites]
-
-            param_values = param.values[best_objectives[:, np.newaxis], cat_indices]
+            sorted_trials = self._obj_arg_sort[: self._current_n_elites]
+            
+            # Get parameter values for the best trials
+            param_values = param.values[sorted_trials[:, np.newaxis], cat_indices]
 
             noise = self.rng.normal(loc=0.0, scale=self._current_noise)
 
@@ -393,6 +389,8 @@ class MARSOpt:
                 self._current_noise = self.final_noise + 0.5 * (
                     self.initial_noise - self.final_noise
                 ) * (1 + np.cos(np.pi * self.progress))
+                
+                self._obj_arg_sort = np.argsort(self.objective_values[:iteration])
 
             self.current_trial = Trial(self, iteration)
             obj_value: float = objective_function(self.current_trial)
@@ -429,8 +427,7 @@ class MARSOpt:
         dict
             Dictionary containing the iteration number and parameter values of the best trial.
         """
-        final_iteration = min(int((self.progress * self.n_trial) + 1), len(self.objective_values))
-        best_iteration = int(np.argmin(self.objective_values[:final_iteration]))
+        best_iteration = int(self._obj_arg_sort[0])
         
         # Pre-allocate dictionary with known size
         best_trial_dict = {
