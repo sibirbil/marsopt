@@ -251,7 +251,7 @@ class MARSOpt:
             param = Parameter(
                 name=name,
             )
-            param.set_values(max_iter=self.n_trial, param_type_or_categories=param_type)
+            param.set_values(max_iter=self.n_trials, param_type_or_categories=param_type)
             self.parameters[name] = param
 
         if self.current_trial.trial_id < self.n_init_points:
@@ -334,11 +334,11 @@ class MARSOpt:
 
         if param is None:
             param = Parameter(name=name)
-            param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
+            param.set_values(max_iter=self.n_trials, param_type_or_categories=categories)
             self.parameters[name] = param
 
         else:
-            param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
+            param.set_values(max_iter=self.n_trials, param_type_or_categories=categories)
 
         cat_indices = param.category_indexer.get_indices(categories)
 
@@ -414,7 +414,7 @@ class MARSOpt:
             return x
 
     def optimize(
-        self, objective_function: Callable[[Trial], float], n_trial: int
+        self, objective_function: Callable[[Trial], float], n_trials: int
     ) -> tuple:
         """
         Runs the optimization loop.
@@ -423,7 +423,7 @@ class MARSOpt:
         ----------
         objective_function : Callable[[Trial], float]
             The function to optimize.
-        n_trial : int
+        n_trials : int
             The number of trials.
 
         Returns
@@ -431,30 +431,30 @@ class MARSOpt:
         tuple
             Best parameters found and the corresponding objective value.
         """
-        if not isinstance(n_trial, int):
-            raise TypeError("n_trial must be an integer.")
+        if not isinstance(n_trials, int):
+            raise TypeError("n_trials must be an integer.")
 
-        if n_trial <= 0:
-            raise ValueError("n_trial must be a positive integer.")
+        if n_trials <= 0:
+            raise ValueError("n_trials must be a positive integer.")
 
         if not callable(objective_function):
             raise TypeError("objective_function must be a callable function.")
 
         self.best_value = float("inf")
 
-        self.n_trial = n_trial
-        self.final_noise = 1.0 / n_trial
-        self.objective_values = np.empty(shape=(n_trial,), dtype=np.float64)
-        self._elite_scale: float = 2 * np.sqrt(n_trial)
-        self.trial_times = np.empty(shape=(n_trial,), dtype=np.float64)
+        self.n_trials = n_trials
+        self.final_noise = 1.0 / n_trials
+        self.objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
+        self._elite_scale: float = 2 * np.sqrt(n_trials)
+        self.trial_times = np.empty(shape=(n_trials,), dtype=np.float64)
 
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
-        for iteration in range(self.n_trial):
+        for iteration in range(self.n_trials):
             start_time = perf_counter()
 
             if iteration >= self.n_init_points:
-                self.progress = iteration / self.n_trial
+                self.progress = iteration / self.n_trials
                 self._current_n_elites = max(
                     1, round(self._elite_scale * self.progress * (1 - self.progress))
                 )
@@ -475,7 +475,7 @@ class MARSOpt:
                 self._logger.info(
                     "",
                     extra={
-                        'trial_info': f"[Trial {iteration+1}/{n_trial}]",
+                        'trial_info': f"[Trial {iteration+1}/{n_trials}]",
                         'params': self.current_trial.params,
                         'objective': obj_value,
                         'time': self.trial_times[iteration]
@@ -618,7 +618,7 @@ class MARSOpt:
             - parameters: Dictionary of parameter values for that trial
         """
         final_iteration = min(
-            int((self.progress * self.n_trial) + 1), len(self.objective_values)
+            int((self.progress * self.n_trials) + 1), len(self.objective_values)
         )
         history = []
 
