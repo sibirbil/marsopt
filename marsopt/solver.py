@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 from time import perf_counter
@@ -9,8 +9,7 @@ from functools import lru_cache
 
 class Trial:
     __slots__ = ["optimizer", "trial_id", "params", "_validated_params"]
-    
-    
+
     """
     Represents a single trial in the optimization process.
     """
@@ -163,6 +162,7 @@ class MARSOpt:
         random_state: Optional[int] = None,
         initial_noise: float = 0.2,
         min_temperature: float = 0.5,
+        direction: Union[str] = "minimize",
         verbose: bool = True,
     ) -> None:
         """
@@ -179,10 +179,21 @@ class MARSOpt:
         min_temperature : float, optional
             Minimum temperature for simulated annealing (default is 0.20).
         """
+
+        self._validate_init_params(
+            n_init_points=n_init_points,
+            random_state=random_state,
+            initial_noise=initial_noise,
+            min_temperature=min_temperature,
+            direction=direction,
+            verbose=verbose,
+        )
+
         self.n_init_points = n_init_points
         self.initial_noise = initial_noise
         self.min_temperature = min_temperature
         self.rng = np.random.default_rng(random_state)
+        self.direction = direction
 
         self.parameters: Dict[str, Parameter] = {}
         self.objective_values: NDArray = None
@@ -194,6 +205,8 @@ class MARSOpt:
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._obj_arg_sort: NDArray = None
+        
+        self.best_value: int = None
 
     def __repr__(self) -> str:
         return (
@@ -416,14 +429,15 @@ class MARSOpt:
         if not callable(objective_function):
             raise TypeError("objective_function must be a callable function.")
 
-        best_value = float("inf")
-        best_params = None
+        self.best_value = float("inf")
 
         self.n_trial = n_trial
         self.final_noise = 1.0 / n_trial
         self.objective_values = np.empty(shape=(n_trial,), dtype=np.float64)
         self._elite_scale: float = 2 * np.sqrt(n_trial)
         self.trial_times = np.empty(shape=(n_trial,), dtype=np.float64)
+
+        direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
         for iteration in range(self.n_trial):
             start_time = perf_counter()
@@ -437,7 +451,9 @@ class MARSOpt:
                     self.initial_noise - self.final_noise
                 ) * (1 + np.cos(np.pi * self.progress))
 
-                self._obj_arg_sort = np.argsort(self.objective_values[:iteration])
+                self._obj_arg_sort = np.argsort(
+                    direction_multipler * self.objective_values[:iteration]
+                )
 
             self.current_trial = Trial(self, iteration)
             obj_value: float = objective_function(self.current_trial)
@@ -458,11 +474,90 @@ class MARSOpt:
 
             self.objective_values[iteration] = obj_value
 
-            if obj_value < best_value:
-                best_value = obj_value
-                best_params = self.current_trial.params.copy()
+            if obj_value < self.best_value:
+                self.best_value = obj_value
 
-        return best_params, best_value
+        return self
+
+    @staticmethod
+    def _validate_init_params(
+        n_init_points: Any,
+        random_state: Any,
+        initial_noise: Any,
+        min_temperature: Any,
+        direction: Any,
+        verbose: Any,
+    ) -> None:
+        """
+        Validates initialization parameters for MARSOpt.
+
+        Parameters
+        ----------
+        n_init_points : Any
+            Number of initial random points
+        random_state : Any
+            Random seed value
+        initial_noise : Any
+            Initial noise level
+        min_temperature : Any
+            Minimum temperature for simulated annealing
+        direction : Any
+            Optimization direction ('minimize' or 'maximize')
+        verbose : Any
+            Verbosity flag
+
+        Raises
+        ------
+        TypeError
+            If parameters are of wrong type
+        ValueError
+            If parameters have invalid values
+        """
+        # n_init_points validation
+        if not isinstance(n_init_points, int):
+            raise TypeError(
+                f"n_init_points must be an integer, got {type(n_init_points)}"
+            )
+        if n_init_points <= 0:
+            raise ValueError(f"n_init_points must be positive, got {n_init_points}")
+
+        # random_state validation
+        if random_state is not None and not isinstance(random_state, int):
+            raise TypeError(
+                f"random_state must be None or an integer, got {type(random_state)}"
+            )
+
+        # initial_noise validation
+        if not isinstance(initial_noise, (int, float)):
+            raise TypeError(
+                f"initial_noise must be a number, got {type(initial_noise)}"
+            )
+        if initial_noise <= 0 or initial_noise > 1:
+            raise ValueError(
+                f"initial_noise must be between 0 and 1, got {initial_noise}"
+            )
+
+        # min_temperature validation
+        if not isinstance(min_temperature, (int, float)):
+            raise TypeError(
+                f"min_temperature must be a number, got {type(min_temperature)}"
+            )
+        if min_temperature <= 0 or min_temperature > 1:
+            raise ValueError(
+                f"min_temperature must be between 0 and 1, got {min_temperature}"
+            )
+
+        # direction validation
+        if not isinstance(direction, str):
+            raise TypeError(f"direction must be a string, got {type(direction)}")
+        if direction not in ["minimize", "maximize"]:
+            raise ValueError(
+                f"direction must be either 'minimize' or 'maximize', got {direction}"
+            )
+
+        # verbose validation
+        if not isinstance(verbose, bool):
+            raise TypeError(f"verbose must be a boolean, got {type(verbose)}")
 
     @property
     def best_trial(self) -> dict:
