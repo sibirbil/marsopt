@@ -251,7 +251,9 @@ class MARSOpt:
             param = Parameter(
                 name=name,
             )
-            param.set_values(max_iter=self.n_trials, param_type_or_categories=param_type)
+            param.set_values(
+                max_iter=self.n_trials, param_type_or_categories=param_type
+            )
             self.parameters[name] = param
 
         if self.current_trial.trial_id < self.n_init_points:
@@ -324,11 +326,15 @@ class MARSOpt:
 
         if param is None:
             param = Parameter(name=name)
-            param.set_values(max_iter=self.n_trials, param_type_or_categories=categories)
+            param.set_values(
+                max_iter=self.n_trials, param_type_or_categories=categories
+            )
             self.parameters[name] = param
 
         else:
-            param.set_values(max_iter=self.n_trials, param_type_or_categories=categories)
+            param.set_values(
+                max_iter=self.n_trials, param_type_or_categories=categories
+            )
 
         cat_indices = param.category_indexer.get_indices(categories)
 
@@ -341,13 +347,11 @@ class MARSOpt:
             # Get parameter values for the best trials
             param_values = param.values[sorted_trials[:, np.newaxis], cat_indices]
 
-            noise = self.rng.normal(loc=0.0, scale=self._current_noise)
-
-            chosen_elites = self.rng.choice(
-                self._current_n_elites, size=len(cat_indices), replace=True
+            noise = self.rng.normal(
+                loc=0.0, scale=self._current_noise, size=len(cat_indices)
             )
 
-            chosen_elites_with_noise = param_values[chosen_elites, cat_indices] + noise
+            chosen_elites_with_noise = param_values[:, cat_indices].mean(axis=0) + noise
 
             for i in range(chosen_elites_with_noise.size):
                 chosen_elites_with_noise[i] = self.reflect_at_boundaries(
@@ -402,7 +406,7 @@ class MARSOpt:
             return low + (deficit / 2.0)
         else:
             return x
-        
+
     def _sample_value(self, low: float, high: float, log: bool) -> float:
         if log:
             return np.exp(self.rng.uniform(np.log(low), np.log(high)))
@@ -471,11 +475,11 @@ class MARSOpt:
                 self._logger.info(
                     "",
                     extra={
-                        'trial_info': f"[Trial {iteration+1}/{n_trials}]",
-                        'params': self.current_trial.params,
-                        'objective': obj_value,
-                        'time': self.trial_times[iteration]
-                    }
+                        "trial_info": f"[Trial {iteration+1}/{n_trials}]",
+                        "params": self.current_trial.params,
+                        "objective": obj_value,
+                        "time": self.trial_times[iteration],
+                    },
                 )
 
             self.objective_values[iteration] = obj_value
