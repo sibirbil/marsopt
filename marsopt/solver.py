@@ -330,6 +330,9 @@ class MARSOpt:
             param = Parameter(name=name)
             param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
             self.parameters[name] = param
+            
+        else:
+            param.set_values(max_iter=self.n_trial, param_type_or_categories=categories)
 
         cat_indices = param.category_indexer.get_indices(categories)
 

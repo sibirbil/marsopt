@@ -137,46 +137,57 @@ class Parameter:
             f"{values_info})"
         )
 
+class Parameter:
+    __slots__ = ["name", "type", "values", "category_indexer"]
+
+    def __init__(self, name: str) -> None:
+        self.name: str = name
+        self.type: type = None
+        self.values: NDArray = None
+        self.category_indexer = CategoryIndexer()
+
     def set_values(
         self, max_iter: int, param_type_or_categories: Union[int, float, List[str]]
     ) -> None:
         """
-        Initializes the storage for parameter values based on the parameter type.
+        Initializes or updates the storage for parameter values based on the parameter type.
 
         Parameters
         ----------
         max_iter : int
             Maximum number of iterations the parameter will be used for.
-        param_type_or_categories : Union[int, float, List[str]]
-            The type of parameter (int, float) or a list of categorical values.
+        param_type_or_categories : Union[type, List[str]]
+            Either a type (int, float) or a list of categorical values.
 
         Raises
         ------
         ValueError
             If an unsupported parameter type is provided.
         """
+        # Handle numeric types
         if isinstance(param_type_or_categories, type):
-            if param_type_or_categories == int:
-                self.values = np.empty(shape=(max_iter,), dtype=np.float64)
-                self.type = int
-            elif param_type_or_categories == float:
-                self.values = np.empty(shape=(max_iter,), dtype=np.float64)
-                self.type = float
-            else:
-                raise ValueError(f"Unsupported type: {param_type_or_categories}")
-        elif isinstance(param_type_or_categories, list):
-            categories = param_type_or_categories
-            total_cats = len(self.category_indexer)
-            max_indice = max(self.category_indexer.get_indices(categories))
+            self.values = np.empty(shape=(max_iter,), dtype=np.float64)
+            self.type = param_type_or_categories
+            return
 
-            if total_cats == 0:
-                self.values = np.empty(shape=(max_iter, max_indice + 1), dtype=np.float64)
-                self.type = type(categories)
-            elif total_cats < max_indice:
-                self.values = np.vstack(
-                    (self.values, np.zeros(shape=(max_iter, 1), dtype=np.float64))
-                )
-        else:
-            raise ValueError(
-                f"Unsupported parameter type: {type(param_type_or_categories)}"
-            )
+        # Handle categorical types
+        if isinstance(param_type_or_categories, list):
+            categories = param_type_or_categories
+            if not categories:
+                raise ValueError("Categories list cannot be empty")
+
+            # Get indices for all categories
+            category_indices = self.category_indexer.get_indices(categories)
+            required_width = category_indices.max() + 1
+
+            # Initialize or resize values array as needed
+            if self.values is None:
+                self.values = np.zeros((max_iter, required_width), dtype=np.float64)
+                self.type = list
+            else:
+                current_width = self.values.shape[1]
+                if required_width > current_width:
+                    # Efficiently extend the array only if needed
+                    extension = np.zeros((max_iter, required_width - current_width), dtype=np.float64)
+                    self.values = np.hstack((self.values, extension))
+            return
