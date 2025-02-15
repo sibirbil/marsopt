@@ -5,7 +5,6 @@ from time import perf_counter
 
 from .parameters import Parameter
 from .logger import OptimizationLogger
-import logging
 
 from functools import lru_cache
 
@@ -163,7 +162,7 @@ class MARSOpt:
         random_state: Optional[int] = None,
         initial_noise: float = 0.2,
         direction: Union[str] = "minimize",
-        verbose: bool = True,
+        verbose: bool = False,
     ) -> None:
         """
         Initializes the optimizer.
@@ -200,10 +199,11 @@ class MARSOpt:
         self._progress: float = None
         self._current_noise: float = None
         self._current_n_elites: float = None
+        self._current_cat_temp: float = None
         self._obj_arg_sort: NDArray = None
-        self._logger = OptimizationLogger(name="MARSOpt")
+        self._logger = OptimizationLogger(name="MARSOpt") if verbose else None
 
-        self.best_value: int = None
+        self._best_value: int = None
 
     def __repr__(self) -> str:
         return (
@@ -272,7 +272,7 @@ class MARSOpt:
                     )
 
                     value = np.exp(
-                        self.reflect_at_boundaries(log_base + noise, log_low, log_high)
+                        self._reflect_at_boundaries(log_base + noise, log_low, log_high)
                     )
 
                 else:
@@ -282,7 +282,7 @@ class MARSOpt:
                         loc=0.0, scale=self._current_noise * param_range
                     )
 
-                    value = self.reflect_at_boundaries(base_value + noise, low, high)
+                    value = self._reflect_at_boundaries(base_value + noise, low, high)
 
             if param_type == int:
                 # probabilistic rounding
@@ -345,17 +345,13 @@ class MARSOpt:
             chosen_elites_with_noise = param_values[:, cat_indices].mean(axis=0) + noise
 
             for i in range(chosen_elites_with_noise.size):
-                chosen_elites_with_noise[i] = self.reflect_at_boundaries(
+                chosen_elites_with_noise[i] = self._reflect_at_boundaries(
                     chosen_elites_with_noise[i]
                 )
 
-            temp = 1.0 / (
-                self.final_noise
-                + 0.5 * (1.0 - self.final_noise) * (1 + np.cos(np.pi * self.progress))
-            )
-
             exps = np.exp(
-                (chosen_elites_with_noise - np.max(chosen_elites_with_noise)) * temp
+                (chosen_elites_with_noise - np.max(chosen_elites_with_noise))
+                * self._current_cat_temp
             )
             probs = exps / exps.sum()
 
@@ -369,7 +365,7 @@ class MARSOpt:
         return param.category_indexer.get_strings(category_idx)
 
     @staticmethod
-    def reflect_at_boundaries(x: float, low: float = 0.0, high: float = 1.0) -> float:
+    def _reflect_at_boundaries(x: float, low: float = 0.0, high: float = 1.0) -> float:
         """
         Reflects values exceeding boundaries back into a valid range.
 
@@ -397,6 +393,28 @@ class MARSOpt:
             return x
 
     def _sample_value(self, low: float, high: float, log: bool) -> float:
+        """
+        Samples a numerical value within the specified range.
+
+        This function generates a random value between `low` and `high`. If `log` is True,
+        the sampling is done in logarithmic space, ensuring a proper distribution
+        when dealing with exponentially scaled parameters.
+
+        Parameters
+        ----------
+        low : float
+            The lower bound of the sampling range.
+        high : float
+            The upper bound of the sampling range.
+        log : bool
+            Whether to sample in logarithmic scale.
+
+        Returns
+        -------
+        float
+            A randomly sampled value within the specified range.
+        """
+
         if log:
             return np.exp(self.rng.uniform(np.log(low), np.log(high)))
         else:
@@ -429,14 +447,14 @@ class MARSOpt:
         if not callable(objective_function):
             raise TypeError("objective_function must be a callable function.")
 
-        self.best_value = float("inf")
+        self._best_value = float("inf")
 
         self.n_trials = n_trials
         self.final_noise = 1.0 / n_trials
         self.objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
         self._elite_scale: float = 2 * np.sqrt(n_trials)
         self.trial_times = np.empty(shape=(n_trials,), dtype=np.float64)
-        
+
         best_iteration: int = 1
 
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
@@ -449,12 +467,19 @@ class MARSOpt:
                 self._current_n_elites = max(
                     1, round(self._elite_scale * self.progress * (1 - self.progress))
                 )
-                self._current_noise = self.final_noise + 0.5 * (
-                    self.initial_noise - self.final_noise
-                ) * (1 + np.cos(np.pi * self.progress))
+
+                cos_anneal = (1 + np.cos(np.pi * self.progress)) * 0.5
+
+                self._current_noise = (
+                    self.final_noise
+                    + (self.initial_noise - self.final_noise) * cos_anneal
+                )
 
                 self._obj_arg_sort = np.argsort(
                     direction_multipler * self.objective_values[:iteration]
+                )
+                self._current_cat_temp = 1.0 / (
+                    self.final_noise + (1.0 - self.final_noise) * cos_anneal
                 )
 
             self.current_trial = Trial(self, iteration)
@@ -462,22 +487,21 @@ class MARSOpt:
 
             self.trial_times[iteration] = perf_counter() - start_time
 
-            if self.verbose:
-                self._logger.log_trial(
-                    iteration=iteration,
-                    params= self.current_trial.params,
-                    objective=obj_value,
-                    time=self.trial_times[iteration],
-                    best_value = self.best_value,
-                    best_iteration = best_iteration
-                    
-                )
-
             self.objective_values[iteration] = obj_value
 
             if obj_value < self.best_value:
-                self.best_value = obj_value
+                self._best_value = obj_value
                 best_iteration = iteration
+
+            if self.verbose:
+                self._logger.log_trial(
+                    iteration=iteration,
+                    params=self.current_trial.params,
+                    objective=obj_value,
+                    time=self.trial_times[iteration],
+                    best_value=self._best_value,
+                    best_iteration=best_iteration,
+                )
 
         return self
 
@@ -547,6 +571,10 @@ class MARSOpt:
         # verbose validation
         if not isinstance(verbose, bool):
             raise TypeError(f"verbose must be a boolean, got {type(verbose)}")
+
+    @property
+    def best_value(self) -> float:
+        return self._best_value
 
     @property
     def best_trial(self) -> dict:
