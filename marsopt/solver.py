@@ -339,9 +339,7 @@ class MARSOpt:
             # Get parameter values for the best trials
             param_values = param.values[sorted_trials[:, np.newaxis], cat_indices]
 
-            noise = self.rng.normal(
-                loc=0.0, scale=self._current_noise, size=cat_size
-            )
+            noise = self.rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
 
             chosen_elites_with_noise = param_values[:, cat_indices].mean(axis=0) + noise
 
@@ -391,7 +389,6 @@ class MARSOpt:
                 x = low + (low - x) / 2.0
 
         return x
-
 
     def _sample_value(self, low: float, high: float, log: bool) -> float:
         """
@@ -453,11 +450,10 @@ class MARSOpt:
         self.n_trials = n_trials
         self.final_noise = 1.0 / n_trials
         self.objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
-        self._elite_scale: float = 2 * np.sqrt(n_trials)
         self.trial_times = np.empty(shape=(n_trials,), dtype=np.float64)
 
         best_iteration: int = None
-
+        elite_scale: float = 2.0 * np.sqrt(n_trials)
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
         for iteration in range(self.n_trials):
@@ -466,7 +462,7 @@ class MARSOpt:
             if iteration >= self.n_init_points:
                 self.progress = iteration / self.n_trials
                 self._current_n_elites = max(
-                    1, round(self._elite_scale * self.progress * (1 - self.progress))
+                    1, round(elite_scale * self.progress * (1 - self.progress))
                 )
 
                 cos_anneal = (1 + np.cos(np.pi * self.progress)) * 0.5
