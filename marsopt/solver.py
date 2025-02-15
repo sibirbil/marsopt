@@ -455,7 +455,7 @@ class MARSOpt:
         self._elite_scale: float = 2 * np.sqrt(n_trials)
         self.trial_times = np.empty(shape=(n_trials,), dtype=np.float64)
 
-        best_iteration: int = 1
+        best_iteration: int = None
 
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
