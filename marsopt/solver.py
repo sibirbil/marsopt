@@ -383,14 +383,14 @@ class MARSOpt:
         float
             Value reflected into the valid range.
         """
-        if x > high:
-            excess = x - high
-            return high - (excess / 2.0)
-        elif x < low:
-            deficit = low - x
-            return low + (deficit / 2.0)
-        else:
-            return x
+        while x < low or x > high:
+            if x > high:
+                x = high - (x - high) / 2.0
+            elif x < low:
+                x = low + (low - x) / 2.0
+
+        return x
+
 
     def _sample_value(self, low: float, high: float, log: bool) -> float:
         """
