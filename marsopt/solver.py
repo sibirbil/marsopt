@@ -328,6 +328,7 @@ class MARSOpt:
             )
 
         cat_indices = param.category_indexer.get_indices(categories)
+        cat_size = cat_indices.size
 
         if trial_id < self.n_init_points:
             category_idx = self.rng.choice(cat_indices)
@@ -339,12 +340,12 @@ class MARSOpt:
             param_values = param.values[sorted_trials[:, np.newaxis], cat_indices]
 
             noise = self.rng.normal(
-                loc=0.0, scale=self._current_noise, size=len(cat_indices)
+                loc=0.0, scale=self._current_noise, size=cat_size
             )
 
             chosen_elites_with_noise = param_values[:, cat_indices].mean(axis=0) + noise
 
-            for i in range(chosen_elites_with_noise.size):
+            for i in range(cat_size):
                 chosen_elites_with_noise[i] = self._reflect_at_boundaries(
                     chosen_elites_with_noise[i]
                 )
@@ -355,7 +356,7 @@ class MARSOpt:
             )
             probs = exps / exps.sum()
 
-            category_idx = cat_indices[self.rng.choice(len(probs), p=probs)]
+            category_idx = cat_indices[self.rng.choice(cat_size, p=probs)]
 
         result = np.zeros(len(param.category_indexer), dtype=np.float64)
         result[category_idx] = 1.0
