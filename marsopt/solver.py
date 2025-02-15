@@ -201,9 +201,7 @@ class MARSOpt:
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._obj_arg_sort: NDArray = None
-        self._logger = OptimizationLogger(
-            name="MARSOpt", level=logging.INFO if verbose else logging.WARNING
-        ).logger
+        self._logger = OptimizationLogger(name="MARSOpt")
 
         self.best_value: int = None
 
@@ -353,9 +351,7 @@ class MARSOpt:
 
             temp = 1.0 / (
                 self.final_noise
-                + 0.5
-                * (1.0 - self.final_noise)
-                * (1 + np.cos(np.pi * self.progress))
+                + 0.5 * (1.0 - self.final_noise) * (1 + np.cos(np.pi * self.progress))
             )
 
             exps = np.exp(
@@ -440,6 +436,8 @@ class MARSOpt:
         self.objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
         self._elite_scale: float = 2 * np.sqrt(n_trials)
         self.trial_times = np.empty(shape=(n_trials,), dtype=np.float64)
+        
+        best_iteration: int = 1
 
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
@@ -465,20 +463,21 @@ class MARSOpt:
             self.trial_times[iteration] = perf_counter() - start_time
 
             if self.verbose:
-                self._logger.info(
-                    "",
-                    extra={
-                        "trial_info": f"[Trial {iteration+1}/{n_trials}]",
-                        "params": self.current_trial.params,
-                        "objective": obj_value,
-                        "time": self.trial_times[iteration],
-                    },
+                self._logger.log_trial(
+                    iteration=iteration,
+                    params= self.current_trial.params,
+                    objective=obj_value,
+                    time=self.trial_times[iteration],
+                    best_value = self.best_value,
+                    best_iteration = best_iteration
+                    
                 )
 
             self.objective_values[iteration] = obj_value
 
             if obj_value < self.best_value:
                 self.best_value = obj_value
+                best_iteration = iteration
 
         return self
 
