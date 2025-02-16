@@ -289,13 +289,13 @@ class MARSOpt:
 
                     value = self._reflect_at_boundaries(base_value + noise, low, high)
 
-            if param_type == int:
-                # probabilistic rounding
-                frac = value - np.floor(value)
-                if self.rng.random() < frac:
-                    value = int(np.ceil(value))
-                else:
-                    value = int(np.floor(value))
+        if param_type == int:
+            # probabilistic rounding
+            frac = value - np.floor(value)
+            if self.rng.random() < frac:
+                value = int(np.ceil(value))
+            else:
+                value = int(np.floor(value))
 
         param.values[self.current_trial.trial_id] = value
 
