@@ -147,10 +147,10 @@ class OptimizationLogger:
 
         # Construct the log message
         log_message = (
-            f"{COLORS['cyan']}Trial {iteration}{COLORS['reset']} | Elapsed Time: {time:.2f}s\n"
-            f"{COLORS['yellow']}Objective: {objective:.4f}{COLORS['reset']}\n"
+            f"{COLORS['cyan']}Trial {iteration}{COLORS['reset']} | Elapsed Time: {time}s\n"
+            f"{COLORS['yellow']}Objective: {objective:}{COLORS['reset']}\n"
             f"Parameters:\n    {params_str}\n"
-            f"{COLORS['green']}Best Iteration: {best_iteration}  Best Value: {best_value:.4f}{COLORS['reset']}\n"
+            f"{COLORS['green']}Best Iteration: {best_iteration}  Best Value: {best_value}{COLORS['reset']}\n"
         )
 
         self.logger.info(log_message)
