@@ -211,7 +211,9 @@ class MARSOpt:
     def __repr__(self) -> str:
         return (
             f"MARSOpt(n_init_points={self.n_init_points}, "
-            f"initial_noise={self.initial_noise}, "
+            f"initial_noise={self.initial_noise:.4f}, "
+            f"final_noise={self.final_noise:.4f}, "
+            f"direction='{self.direction}', "
             f"verbose={self.verbose})"
         )
 
@@ -452,10 +454,9 @@ class MARSOpt:
 
         if self.n_init_points is None:
             self.n_init_points = round(np.sqrt(n_trials))
-    
+
         if self.final_noise is None:
             self.final_noise = 1.0 / n_trials
-            
 
         self.n_trials = n_trials
         self.objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
@@ -562,7 +563,9 @@ class MARSOpt:
 
         # initial_noise validation
         if not isinstance(initial_noise, (int, float)):
-            raise TypeError(f"initial_noise must be a number, got {type(initial_noise)}")
+            raise TypeError(
+                f"initial_noise must be a number, got {type(initial_noise)}"
+            )
         if not (0 < initial_noise <= 1):
             raise ValueError(
                 f"initial_noise must be between 0 and 1 (exclusive), got {initial_noise}"
@@ -571,7 +574,9 @@ class MARSOpt:
         # final_noise validation
         if final_noise is not None:
             if not isinstance(final_noise, (int, float)):
-                raise TypeError(f"final_noise must be a number, got {type(final_noise)}")
+                raise TypeError(
+                    f"final_noise must be a number, got {type(final_noise)}"
+                )
             if not (0 < final_noise <= 1):
                 raise ValueError(
                     f"final_noise must be between 0 and 1 (exclusive), got {final_noise}"
@@ -592,7 +597,6 @@ class MARSOpt:
         # verbose validation
         if not isinstance(verbose, bool):
             raise TypeError(f"verbose must be a boolean, got {type(verbose)}")
-
 
     @property
     def best_value(self) -> float:
