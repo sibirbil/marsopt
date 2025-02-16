@@ -1,8 +1,8 @@
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Dict
 
-# ANSI color codes
+# ANSI color codes for console output
 COLORS = {
     "cyan": "\033[36m",
     "yellow": "\033[33m",
@@ -14,15 +14,48 @@ COLORS = {
 
 
 class ColoredFormatter(logging.Formatter):
-    """Custom formatter that removes INFO and adds colors."""
+    """
+    Custom logging formatter that removes the log level and adds timestamps.
+
+    This formatter ensures that logs appear with only the timestamp and message,
+    without the log level (e.g., INFO, DEBUG).
+    """
 
     def format(self, record: logging.LogRecord) -> str:
-        return f"{self.formatTime(record, self.datefmt)} | {record.getMessage()}"  # 🔥 HATA DÜZELTİLDİ
+        """
+        Formats the log record.
+
+        Parameters
+        ----------
+        record : logging.LogRecord
+            The log record to format.
+
+        Returns
+        -------
+        str
+            The formatted log message.
+        """
+        return f"{self.formatTime(record, self.datefmt)} | {record.getMessage()}"
 
 
 def setup_logger(name: str = "MARSOpt", log_file: Optional[str] = None) -> logging.Logger:
     """
-    Set up and configure the logger without INFO and with colors.
+    Set up and configure a logger.
+
+    The logger prints messages to the console and optionally writes them to a file.
+    It filters out INFO-level messages and applies color formatting.
+
+    Parameters
+    ----------
+    name : str, optional
+        The name of the logger (default is "MARSOpt").
+    log_file : str, optional
+        The file path to write logs to. If None, logging to a file is disabled.
+
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance.
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
@@ -30,20 +63,36 @@ def setup_logger(name: str = "MARSOpt", log_file: Optional[str] = None) -> loggi
 
     # Console handler with colors
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(ColoredFormatter(fmt="%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    console_handler.setFormatter(
+        ColoredFormatter(fmt="%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
     logger.addHandler(console_handler)
 
     # File handler if log_file is provided (without colors)
     if log_file:
         file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter(fmt="%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        file_handler.setFormatter(
+            logging.Formatter(fmt="%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        )
         logger.addHandler(file_handler)
 
     return logger
 
 
 class OptimizationLogger:
-    """Helper class to log optimization progress"""
+    """
+    Helper class for logging optimization progress.
+
+    This class provides structured logging for optimization trials, 
+    including parameters, objective function values, and execution time.
+
+    Parameters
+    ----------
+    name : str, optional
+        Name of the logger (default is "MARSOpt").
+    log_file : str, optional
+        Path to the log file. If None, logs are not written to a file.
+    """
 
     def __init__(self, name: str = "MARSOpt", log_file: Optional[str] = None):
         self.logger = setup_logger(name=name, log_file=log_file)
@@ -51,23 +100,52 @@ class OptimizationLogger:
     def log_trial(
         self,
         iteration: int,
-        params: dict,
+        params: Dict[str, float],
         objective: float,
         time: float,
         best_iteration: int,
         best_value: float,
     ) -> None:
         """
-        Logs the results of an optimization trial in a structured and readable format with colors.
+        Logs the results of an optimization trial in a structured and readable format.
+
+        This function logs key details of an optimization iteration, 
+        including hyperparameters, objective function values, and the best result so far.
+
+        Parameters
+        ----------
+        iteration : int
+            The current trial number.
+        params : Dict[str, float]
+            The dictionary of hyperparameters used in the trial.
+        objective : float
+            The objective function value obtained in the trial.
+        time : float
+            The time taken for the trial (in seconds).
+        best_iteration : int
+            The iteration number that yielded the best objective value so far.
+        best_value : float
+            The best objective function value observed so far.
+
+        Returns
+        -------
+        None
+            Logs the information to the configured logger.
         """
 
-        # Format parameters with color
+        # Format parameters with colors
         params_str = "\n    ".join(
-            [f"{COLORS['blue']}{k}{COLORS['reset']}: {v:.4f}" if isinstance(v, float) else f"{COLORS['blue']}{k}{COLORS['reset']}: {v}"
-             for k, v in params.items()]
+            [
+                (
+                    f"{COLORS['blue']}{k}{COLORS['reset']}: {v:.4f}"
+                    if isinstance(v, float)
+                    else f"{COLORS['blue']}{k}{COLORS['reset']}: {v}"
+                )
+                for k, v in params.items()
+            ]
         )
 
-        # Log mesajını belirlenen formata uygun oluştur
+        # Construct the log message
         log_message = (
             f"{COLORS['cyan']}Trial {iteration}{COLORS['reset']} | Elapsed Time: {time:.2f}s\n"
             f"{COLORS['yellow']}Objective: {objective:.4f}{COLORS['reset']}\n"
