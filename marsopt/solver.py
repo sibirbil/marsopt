@@ -158,10 +158,11 @@ class MARSOpt:
 
     def __init__(
         self,
-        n_init_points: int = 10,
-        random_state: Optional[int] = None,
         initial_noise: float = 0.2,
-        direction: Union[str] = "minimize",
+        direction: str = "minimize",
+        n_init_points: Optional[int] = None,
+        final_noise: Optional[float] = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """
@@ -180,6 +181,7 @@ class MARSOpt:
         self._validate_init_params(
             n_init_points=n_init_points,
             random_state=random_state,
+            final_noise=final_noise,
             initial_noise=initial_noise,
             direction=direction,
             verbose=verbose,
@@ -195,6 +197,7 @@ class MARSOpt:
         self.trial_times: NDArray = None
         self.current_trial: Optional[Trial] = None
         self.verbose = verbose
+        self.final_noise = final_noise
 
         self._progress: float = None
         self._current_noise: float = None
@@ -447,8 +450,14 @@ class MARSOpt:
 
         self._best_value = float("inf")
 
+        if self.n_init_points is None:
+            self.n_init_points = round(np.sqrt(n_trials))
+    
+        if self.final_noise is None:
+            self.final_noise = 1.0 / n_trials
+            
+
         self.n_trials = n_trials
-        self.final_noise = 1.0 / n_trials
         self.objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
         self.trial_times = np.empty(shape=(n_trials,), dtype=np.float64)
 
@@ -507,6 +516,7 @@ class MARSOpt:
         n_init_points: Any,
         random_state: Any,
         initial_noise: Any,
+        final_noise: Any,
         direction: Any,
         verbose: Any,
     ) -> None:
@@ -521,6 +531,8 @@ class MARSOpt:
             Random seed value
         initial_noise : Any
             Initial noise level
+        final_noise : Any
+            Final noise level
         direction : Any
             Optimization direction ('minimize' or 'maximize')
         verbose : Any
@@ -534,12 +546,13 @@ class MARSOpt:
             If parameters have invalid values
         """
         # n_init_points validation
-        if not isinstance(n_init_points, int):
-            raise TypeError(
-                f"n_init_points must be an integer, got {type(n_init_points)}"
-            )
-        if n_init_points <= 0:
-            raise ValueError(f"n_init_points must be positive, got {n_init_points}")
+        if n_init_points is not None:
+            if not isinstance(n_init_points, int):
+                raise TypeError(
+                    f"n_init_points must be an integer, got {type(n_init_points)}"
+                )
+            if n_init_points <= 0:
+                raise ValueError(f"n_init_points must be positive, got {n_init_points}")
 
         # random_state validation
         if random_state is not None and not isinstance(random_state, int):
@@ -549,13 +562,24 @@ class MARSOpt:
 
         # initial_noise validation
         if not isinstance(initial_noise, (int, float)):
-            raise TypeError(
-                f"initial_noise must be a number, got {type(initial_noise)}"
-            )
-        if initial_noise <= 0 or initial_noise > 1:
+            raise TypeError(f"initial_noise must be a number, got {type(initial_noise)}")
+        if not (0 < initial_noise <= 1):
             raise ValueError(
-                f"initial_noise must be between 0 and 1, got {initial_noise}"
+                f"initial_noise must be between 0 and 1 (exclusive), got {initial_noise}"
             )
+
+        # final_noise validation
+        if final_noise is not None:
+            if not isinstance(final_noise, (int, float)):
+                raise TypeError(f"final_noise must be a number, got {type(final_noise)}")
+            if not (0 < final_noise <= 1):
+                raise ValueError(
+                    f"final_noise must be between 0 and 1 (exclusive), got {final_noise}"
+                )
+            if final_noise > initial_noise:
+                raise ValueError(
+                    f"final_noise ({final_noise}) must be less than or equal to initial_noise ({initial_noise})"
+                )
 
         # direction validation
         if not isinstance(direction, str):
@@ -568,6 +592,7 @@ class MARSOpt:
         # verbose validation
         if not isinstance(verbose, bool):
             raise TypeError(f"verbose must be a boolean, got {type(verbose)}")
+
 
     @property
     def best_value(self) -> float:
