@@ -189,7 +189,7 @@ class MARSOpt:
 
         self.n_init_points = n_init_points
         self.initial_noise = initial_noise
-        self.rng = np.random.default_rng(random_state)
+        self.rng = np.random.RandomState(random_state)
         self.direction = direction
 
         self.parameters: Dict[str, Parameter] = {}
