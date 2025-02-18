@@ -346,7 +346,7 @@ class MARSOpt:
 
             noise = self.rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
 
-            chosen_elites_with_noise = param_values[:, cat_indices].mean(axis=0) + noise
+            chosen_elites_with_noise = param_values.mean(axis=0) + noise
 
             for i in range(cat_size):
                 chosen_elites_with_noise[i] = self._reflect_at_boundaries(
