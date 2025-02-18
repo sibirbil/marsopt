@@ -1,156 +1,137 @@
-import os
-import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
-from matplotlib.lines import Line2D
+import pandas as pd
+import os
 
-# Updated color map and legend labels for the new comparison
-COLOR_MAP = {
-    'Trial': '#1f77b4',
-    'Optuna': '#ff7f0e',
-    'CMA': '#2ca02c',
-    'Random': '#9467bd'
-}
-
-LEGEND_LABELS = {
-    'Trial': 'Trial',
-    'Optuna': 'Optuna (TPE)',
-    'CMA': 'CMA-ES',
-    'Random': 'Random'
-}
-
-plt.rcParams.update({
-    'mathtext.default': 'regular',
-    'font.size': 12
-})
-
-os.makedirs("./results/comparison", exist_ok=True)
-
-for file in os.listdir("./results/mars"):
-    if file.endswith(".csv"):
-        problem_name = os.path.splitext(file)[0]
+def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = None):
+    """
+    Visualize optimization results with subplots for different trial counts.
+    
+    Args:
+        results_df (pd.DataFrame): DataFrame containing optimization results
+        save_path (str, optional): Path to save the plots. If None, plots will be displayed
+    """
+    # Set style
+    plt.style.use('default')
+    sns.set_style("whitegrid")
+    colors = sns.color_palette('deep')
+    
+    # Get unique categories and problems
+    unique_categories = results_df['problem_category'].unique()
+    
+    for category in unique_categories:
+        category_data = results_df[results_df['problem_category'] == category]
+        unique_problems = category_data['problem_name'].unique()
         
-        # Load all data sources without checkpoint limitation
-        trial_df = pd.read_csv(f"./results/mars/{file}")
-        trial_df = trial_df.assign(param_group='Trial')
-        
-        optuna_df = pd.read_csv(f"./results/optuna/{file}")
-        optuna_df = optuna_df.assign(param_group='Optuna')
-        
-        cma_df = pd.read_csv(f"./results/cma/{file}")
-        # Rename max_iter to max_iter for consistency
-        cma_df = cma_df.assign(param_group='CMA')
-        
-        random_df = pd.read_csv(f"./results/random/{file}")
-        random_df = random_df.assign(param_group='Random')
-        
-        # Combine all data
-        combined_df = pd.concat([
-            trial_df,
-            optuna_df,
-            cma_df,
-            random_df
-        ], ignore_index=True)
-
-        # Plotting setup
-        plt.figure(figsize=(25, 13))
-        width = 0.18
-        spacing = 1.5
-        
-        max_iters = sorted(combined_df['max_iter'].unique())
-        x_base = np.arange(len(max_iters)) * spacing
-        
-        ordered_groups = ['Trial', 'Optuna', 'CMA', 'Random']
-
-        # Bar plots
-        for cp_idx, max_iter in enumerate(max_iters):
-            groups_data = combined_df[combined_df['max_iter'] == max_iter]
+        for problem in unique_problems:
+            problem_data = category_data[category_data['problem_name'] == problem]
+            unique_trials = sorted(problem_data['trials'].unique())
+            n_trials = len(unique_trials)
             
-            for group_idx, group_name in enumerate(ordered_groups):
-                group_data = groups_data[groups_data['param_group'] == group_name]
-                if group_data.empty:
-                    continue
-
-                x = x_base[cp_idx] + (group_idx - len(ordered_groups)/2 + 0.5) * width
+            # Create figure with subplots
+            fig = plt.figure(figsize=(15, 5 * n_trials))
+            gs = fig.add_gridspec(n_trials, 2, width_ratios=[2, 1])
+            
+            for idx, trial_count in enumerate(unique_trials):
+                trial_data = problem_data[problem_data['trials'] == trial_count]
+                unique_methods = trial_data['method'].unique()
                 
-                avg = group_data['avg_fx'].values[0]
-                std = group_data['std_fx'].values[0]
-                min_val = group_data['min_fx'].values[0]
-                max_val = group_data['max_fx'].values[0]
-
-                plt.bar(
-                    x, avg, width,
-                    color=COLOR_MAP[group_name],
-                    alpha=0.9,
-                    edgecolor='black'
-                )
+                # Create plot area
+                ax = fig.add_subplot(gs[idx, 0])
+                # Create table area
+                table_ax = fig.add_subplot(gs[idx, 1])
+                table_ax.axis('off')
                 
-                plt.errorbar(
-                    x, avg, yerr=std,
-                    fmt='none', ecolor='black',
-                    capsize=5, elinewidth=1
-                )
+                # Dictionary to store statistical summary
+                stats_data = []
+                best_mean = float('inf')
                 
-                plt.plot(
-                    [x - width/2, x + width/2], [min_val]*2,
-                    color=COLOR_MAP[group_name], lw=2, alpha=0.7
-                )
-                plt.plot(
-                    [x - width/2, x + width/2], [max_val]*2,
-                    color=COLOR_MAP[group_name], lw=2, alpha=0.7
-                )
+                # Process each method
+                for method_idx, method in enumerate(unique_methods):
+                    method_data = trial_data[trial_data['method'] == method]
+                    
+                    try:
+                        all_cum_mins = []
+                        final_values = []
+                        
+                        for history in method_data['history']:
+                            history_array = np.array(eval(history))  # Convert string to array
+                            if len(history_array) < trial_count:
+                                continue
+                            cum_min = np.minimum.accumulate(history_array[:trial_count])
+                            all_cum_mins.append(cum_min)
+                            final_values.append(cum_min[-1])
+                        
+                        if all_cum_mins:
+                            all_cum_mins = np.vstack(all_cum_mins)
+                            mean_cum_min = np.mean(all_cum_mins, axis=0)
+                            min_cum_min = np.min(all_cum_mins, axis=0)
+                            max_cum_min = np.max(all_cum_mins, axis=0)
+                            
+                            # Plot
+                            iterations = np.arange(trial_count)
+                            ax.fill_between(iterations, min_cum_min, max_cum_min,
+                                          color=colors[method_idx], alpha=0.2)
+                            ax.plot(iterations, mean_cum_min, label=method.upper(),
+                                  color=colors[method_idx], linewidth=2.5)
+                            
+                            # Store statistics
+                            mean_val = np.mean(final_values)
+                            stats_data.append({
+                                'Method': method.upper(),
+                                'Mean': f"{mean_val:.4f}",
+                                'Std': f"±{np.std(final_values):.4f}",
+                                'Min': f"{np.min(final_values):.4f}",
+                                'Max': f"{np.max(final_values):.4f}",
+                                '_mean_val': mean_val
+                            })
+                            best_mean = min(best_mean, mean_val)
+                            
+                    except Exception as e:
+                        print(f"Error processing {method}: {str(e)}")
+                        continue
+                
+                # Style plot
+                ax.grid(True, color='gray', alpha=0.15)
+                ax.set_title(f'Trials: {trial_count}', fontsize=14, pad=20)
+                ax.set_xlabel('Iteration', fontsize=12)
+                ax.set_ylabel('Best Found Value', fontsize=12)
+                ax.legend(title='Method', title_fontsize=12, fontsize=10)
+                
+                # Create performance table
+                stats_data.sort(key=lambda x: x['_mean_val'])
+                table_data = []
+                cell_colors = []
+                
+                for row in stats_data:
+                    is_best = abs(row['_mean_val'] - best_mean) < 1e-10
+                    row_data = [row['Method'], row['Mean'], row['Std'], row['Min'], row['Max']]
+                    row_colors = ['#e6ffe6' if is_best else 'white'] * 5
+                    table_data.append(row_data)
+                    cell_colors.append(row_colors)
+                
+                table = table_ax.table(cellText=table_data,
+                                     colLabels=['METHOD', 'MEAN', 'STD', 'MIN', 'MAX'],
+                                     cellLoc='center',
+                                     loc='center',
+                                     cellColours=cell_colors)
+                table.auto_set_font_size(False)
+                table.set_fontsize(9)
+                table.scale(1.2, 1.5)
+            
+            # Set overall title
+            fig.suptitle(f'{category}\n{problem}', fontsize=16, y=0.98)
+            plt.tight_layout()
+            
+            if save_path:
+                filename = f'{category}_{problem}.png'
+                full_path = os.path.join(save_path, filename)
+                plt.savefig(full_path, dpi=300, bbox_inches='tight')
+                plt.close()
+            else:
+                plt.show()
 
-        # X-axis formatting with rotated labels for better readability
-        plt.xticks(x_base, max_iters, rotation=45)
-        plt.xlim(x_base[0]-spacing*0.5, x_base[-1]+spacing*0.5)
-        plt.xlabel('Iterations', fontsize=14, labelpad=15)  # Changed from 'Check Points' to 'Iterations'
-
-        pivot_table = combined_df.pivot(
-            index='max_iter',
-            columns='param_group',
-            values='avg_fx'
-        ).sort_index()
-        pivot_table = pivot_table[ordered_groups]  # Sütunları ordered_groups sırasına göre düzenle
-
-        # Sonra tablo oluşturma aynı şekilde devam eder
-        cell_text = []
-        for cp in max_iters:
-            row = pivot_table.loc[cp]
-            min_val = row.min()
-            formatted_row = []
-            for val in row:
-                formatted_row.append(f'$\\bf{{{val:.5f}}}$' if val == min_val else f'{val:.5f}')
-            cell_text.append(formatted_row)
-
-        # Adjust table position and size based on number of checkpoints
-        table_height = min(0.6, 0.8 * (10 / len(max_iters)))
-        table = plt.table(
-            cellText=cell_text,
-            rowLabels=[f'Iter {cp}' for cp in max_iters],  # Changed from 'Check Point' to 'Iter'
-            colLabels=[LEGEND_LABELS[g] for g in ordered_groups],
-            cellLoc='center',
-            loc='center right',
-            bbox=[1.05, 0.2, 0.3, table_height]
-        )
-        table.set_fontsize(11)
-        table.scale(1, 1.3)
-
-        # Other formatting
-        plt.title(f"{problem_name}\nPerformance Comparison", fontsize=16, pad=20)
-        plt.ylabel('Objective Value (Lower is Better)', fontsize=14)
-        plt.grid(axis='y', alpha=0.3)
-        
-        legend_elements = [Line2D([0], [0], color=COLOR_MAP[g], lw=4, label=LEGEND_LABELS[g]) 
-                         for g in ordered_groups]
-        plt.legend(
-            handles=legend_elements,
-            bbox_to_anchor=(1.05, 1.02),
-            loc='upper left',
-            title='Optimization Methods',
-            fontsize=12
-        )
-
-        plt.tight_layout()
-        plt.subplots_adjust(right=0.72)
-        plt.savefig(f"./results/comparison/{problem_name}_comparison.png", dpi=300, bbox_inches='tight')
-        plt.close()
+# Example usage:
+# results_df = pd.read_csv("optimization_results.csv")
+# visualize_optimization_results(results_df, save_path=None)

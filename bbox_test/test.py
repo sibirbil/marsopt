@@ -9,7 +9,6 @@ from bbox_test.bbox import *
 
 optuna.logging.disable_default_handler()
 
-
 class OptunaProblemWrapper:
     def __init__(self, problem, int_indices=None):
         self.problem = problem
@@ -26,68 +25,52 @@ class OptunaProblemWrapper:
             params.append(param)
         return self.problem.do_evaluate(np.array(params))
 
-
 def run_single_cma(args):
     test, max_iter, seed = args
-
     problem = eval(test["name"])(test["dim"])
-
+    
     if test["res"] is not None:
         problem = Discretizer(problem, test["res"])
-
+        
     wrapped_problem = OptunaProblemWrapper(
         problem, int_indices=test["int"] if test["int"] is not None else []
     )
-
+    
     sampler = optuna.samplers.CmaEsSampler(seed=seed)
     study = optuna.create_study(direction="minimize", sampler=sampler)
-
-    study.optimize(
-        wrapped_problem,
-        n_trials=max_iter,
-    )
-
-    return study.best_value
-
+    
+    study.optimize(wrapped_problem, n_trials=max_iter)
+    history = [t.value for t in study.trials]
+    return history
 
 def run_single_mars(args):
     test, max_iter, seed = args
-
     problem = eval(test["name"])(test["dim"])
-
+    
     if test["res"] is not None:
         problem = Discretizer(problem, test["res"])
-
+        
     wrapped_problem = OptunaProblemWrapper(
         problem, int_indices=test["int"] if test["int"] is not None else []
     )
-
-    study = MARSOpt(
-        random_state=seed,
-        n_init_points=10,
-    )
-
-    study.optimize(
-        wrapped_problem,
-        n_trials=max_iter,
-    )
-
-    return study.best_value
-
+    
+    study = MARSOpt(random_state=seed, n_init_points=10)
+    study.optimize(wrapped_problem, n_trials=max_iter)
+    return study.objective_values.tolist()
 
 def run_single_optuna(args):
-    test, check_points, seed, method = args
-
+    test, max_trials, seed, method = args
     problem = eval(test["name"])(test["dim"])
-
+    max_iter = max(max_trials)  # max_trials is now the check_points list
+    
     if test["res"] is not None:
         problem = Discretizer(problem, test["res"])
-
+        
     if method == "random":
         sampler = optuna.samplers.RandomSampler(seed=seed)
-
     else:
         sampler = optuna.samplers.TPESampler(seed=seed)
+        
     study = optuna.create_study(direction="minimize", sampler=sampler)
 
     def objective(trial):
@@ -99,99 +82,85 @@ def run_single_optuna(args):
                 params.append(trial.suggest_float(str(i), lb, ub))
         return problem.do_evaluate(np.array(params))
 
-    study.optimize(objective, n_trials=max(check_points))
+    # Optimize for maximum trials needed
+    study.optimize(objective, n_trials=max_iter)
+    
+    # Get full history
+    history = [t.value for t in study.trials]
+    
+    # Create a dictionary to store histories for each checkpoint
+    checkpoint_histories = {}
+    for cp in max_trials:  # Using max_trials (check_points) passed in args
+        if cp <= len(history):
+            checkpoint_histories[cp] = history[:cp]
+            
+    return checkpoint_histories
 
-    # Calculate cumulative minimums
-    trial_values = [t.value for t in study.trials]
-    cumulative_min = np.minimum.accumulate(trial_values)
-
-    # Get values at checkpoints
-    results = {}
-    for cp in check_points:
-        if cp <= len(cumulative_min):
-            results[cp] = cumulative_min[cp - 1]
-
-    return results
-
-
-def run_optimization(tests, method="mars", output_dir="./results"):
+def run_optimization(tests, method, output_file, problem_category):
     optuna.logging.disable_default_handler()
-    n_seeds = 30
-    check_points = [50, 75, 100, 150, 200, 250, 500, 1000]
+    n_seeds = 3
+    check_points = [50, 75]
 
-    os.makedirs(output_dir, exist_ok=True)
+    with open(output_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Write header if file is empty
+        if os.path.getsize(output_file) == 0:
+            writer.writerow(['problem_category', 'problem_name', 'method', 'trials', 'seed', 'history'])
 
-    for test in tests:
-        if method == "mars" or method == "cma":
-            output_save_path = f"{output_dir}/{test['name']}_{test['dim']}.csv"
-            if method == "cma":
-                run_func = run_single_cma
+        for test in tests:
+            print(f"Running {method} test: {test['name']} dim={test['dim']}")
 
-            else:
+            if method == "mars":
                 run_func = run_single_mars
-            configurations = list(
-                itertools.product([test], check_points, range(n_seeds))
-            )
-
-        else:
-            output_save_path = f"{output_dir}/{test['name']}_{test['dim']}.csv"
-            run_func = run_single_optuna
-            configurations = list(
-                itertools.product(
-                    [test],
-                    [check_points],  # Pass entire check_points list
-                    range(n_seeds),
-                    [method],
-                )
-            )
-
-        os.makedirs(os.path.dirname(output_save_path), exist_ok=True)
-        print(f"Running {method} test: {test['name']} dim={test['dim']}")
-
-        with open(output_save_path, mode="w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow(
-                ["function", "max_iter", "seed", "min_fx", "max_fx", "avg_fx", "std_fx"]
-            )
+                configurations = list(itertools.product([test], check_points, range(n_seeds)))
+            elif method == "cma":
+                run_func = run_single_cma
+                configurations = list(itertools.product([test], check_points, range(n_seeds)))
+            else:  # optuna or random
+                run_func = run_single_optuna
+                configurations = list(itertools.product([test], [check_points], range(n_seeds), [method]))
 
             with ProcessPoolExecutor() as executor:
                 results = list(executor.map(run_func, configurations))
 
-            if method == "mars" or method == "cma":
-                # Process MARS results as before
-                grouped_results = {}
-                for config, result in zip(configurations, results):
+            # Write results
+            for idx, (config, result) in enumerate(zip(configurations, results)):
+                if method in ["mars", "cma"]:
                     max_iter = config[1]
-                    if max_iter not in grouped_results:
-                        grouped_results[max_iter] = []
-                    grouped_results[max_iter].append(result)
-            else:
-                # Process Optuna results from cumulative minimums
-                grouped_results = {cp: [] for cp in check_points}
-                for result in results:
-                    for cp in check_points:
-                        if cp in result:
-                            grouped_results[cp].append(result[cp])
-
-            for max_iter, results_list in grouped_results.items():
-                writer.writerow(
-                    [
-                        test["name"],
+                    seed = config[2]
+                    writer.writerow([
+                        problem_category,
+                        f"{test['name']}_{test['dim']}_{test['res']}_{test['int']}",
+                        method,
                         max_iter,
-                        n_seeds,
-                        float(min(results_list)),
-                        float(max(results_list)),
-                        float(np.mean(results_list)),
-                        float(np.std(results_list)),
-                    ]
-                )
-
+                        seed,
+                        result
+                    ])
+                else:  # optuna or random
+                    seed = config[2]
+                    # Write a row for each checkpoint
+                    for max_iter, history in result.items():
+                        writer.writerow([
+                            problem_category,
+                            f"{test['name']}_{test['dim']}_{test['res']}_{test['int']}",
+                            method,
+                            max_iter,
+                            seed,
+                            history
+                        ])
 
 if __name__ == "__main__":
-    run_optimization(tests_for_nonparametric, method='mars', output_dir="./results/mars")
-
-    run_optimization(tests_for_nonparametric, method='optuna', output_dir="./results/optuna")
-
-    run_optimization(tests_for_nonparametric, method='random', output_dir="./results/random")
-
-    run_optimization(tests_for_nonparametric, method="cma", output_dir="./results/cma")
+    output_file = "optimization_results.csv"
+    
+    # Create new file with header
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['problem_category', 'problem_name', 'method', 'trials', 'seed', 'history'])
+    
+    # Run optimizations for each category and method
+    methods = ["mars", "optuna", "random", "cma"]
+    
+    for method in methods:
+        run_optimization(tests_for_nonparametric, method, output_file, "tests_for_nonparametric")
+        run_optimization(tests_for_auc, method, output_file, "tests_for_auc")
