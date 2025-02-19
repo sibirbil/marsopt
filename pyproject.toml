@@ -1,32 +1,33 @@
 [project]
 name = "marsopt"
 version = "0.1"
-
-dependencies = [
-    "numpy>=1.24.4",
-]
-authors = [
-    { name = "Samet Copur", email = "sametcopur@yahoo.com" },
-    { name = "Ilker Birbil", email = 'sibirbil@gmail.com' },
-]
 description = "Mixed Adaptive Random Search for Optimization"
 readme = "README.md"
 license = {text = "MIT License"}
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+authors = [
+  { name = "Samet Copur", email = "sametcopur@yahoo.com" },
+  { name = "Ilker Birbil", email = "sibirbil@gmail.com" },
 ]
 keywords = [
     "python",
-    "data-science",
+    "optimization",
+    "adaptive-random-search",
+    "hyperparameter-tuning",
+    "hyperparameter-optimization",
+    "mixed-parameter-space",
+    "categorical-parameters",
     "machine-learning",
-    "machine-learning-library",
-    "explainable-ai",
-    "gradient boosting",
+    "data-science",
+    "metaheuristics",
 ]
 
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
 requires-python = ">=3.9"
+dependencies = ["numpy>=1.24.4"]
 
 [project.urls]
 Documentation = "https://marsopt.readthedocs.io/en/latest/"
@@ -37,5 +38,5 @@ Tracker = "https://github.com/sibirbil/marspot/issues"
 build = "cp39-* cp310-* cp311-* cp312-* cp312-* cp313-*"
 
 [build-system]
-requires = ["numpy"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
