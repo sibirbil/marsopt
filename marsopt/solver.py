@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 from time import perf_counter
@@ -264,7 +264,7 @@ class Study:
         n_init_points: Optional[int] = None,
         final_noise: Optional[float] = None,
         random_state: Optional[int] = None,
-        verbose: bool = False,
+        verbose: bool = True,
     ) -> None:
         """
         Initialize the Study.
@@ -283,7 +283,7 @@ class Study:
             **1.0 / `n_trials`**
         random_state : int, default = None
             Seed for reproducibility.
-        verbose : bool, default = False
+        verbose : bool, default = True
             Whether to print logs during optimization.
         """
 
@@ -326,7 +326,7 @@ class Study:
 
     def _suggest_numerical(
         self, name: str, low: float, high: float, param_type: type, log: bool
-    ) -> float:
+    ) -> Union[float, int]:
         """
         Suggests a numerical parameter value.
 
@@ -345,7 +345,7 @@ class Study:
 
         Returns
         -------
-        float
+        Union[float, int]
             The suggested numerical value.
         """
         param = self._parameters.get(name)
@@ -559,7 +559,7 @@ class Study:
         ## check existing trial:
         if self._objective_values is not None:
             n_exist_trials = int(self._objective_values.size)
-            
+
             # Find best iteration based on direction
             if self.direction == "minimize":
                 best_iteration = np.argmin(self._objective_values[:n_exist_trials])
@@ -567,7 +567,7 @@ class Study:
             else:
                 best_iteration = np.argmax(self._objective_values[:n_exist_trials])
                 best_value = self._objective_values[best_iteration]
-                
+
             total_trials = n_trials + n_exist_trials
             self.n_trials = total_trials
 
@@ -579,26 +579,26 @@ class Study:
             # Correctly use np.hstack with tuples
             old_objective_values = self._objective_values
             old_elapsed_times = self._elapsed_times
-            
+
             self._objective_values = np.empty(shape=(total_trials,), dtype=np.float64)
             self._elapsed_times = np.empty(shape=(total_trials,), dtype=np.float64)
-            
+
             # Copy existing data
             self._objective_values[:n_exist_trials] = old_objective_values
             self._elapsed_times[:n_exist_trials] = old_elapsed_times
-            
+
             for param in self._parameters.keys():
                 self._parameters[param].add_iter(n_trials)
 
         else:
             n_exist_trials = 0
             total_trials = n_trials
-            
+
             if self.direction == "minimize":
                 best_value = float("inf")
             else:
                 best_value = float("-inf")
-                
+
             best_iteration = None
 
             if self.final_noise is None:
@@ -646,8 +646,9 @@ class Study:
             self._objective_values[iteration] = obj_value
 
             # Update best value based on optimization direction
-            if (self.direction == "minimize" and obj_value < best_value) or \
-            (self.direction == "maximize" and obj_value > best_value):
+            if (self.direction == "minimize" and obj_value < best_value) or (
+                self.direction == "maximize" and obj_value > best_value
+            ):
                 best_value = obj_value
                 best_iteration = iteration
 
@@ -661,8 +662,8 @@ class Study:
                     best_iteration=best_iteration,
                 )
 
-        return self
-    
+        return
+
     @staticmethod
     def _validate_init_params(
         n_init_points: Any,
