@@ -677,6 +677,14 @@ class Study:
             Dictionary mapping parameter names to their importance scores (absolute correlation values).
             Higher values indicate stronger correlation with the objective.
         """
+        try:
+            from scipy.stats import spearmanr
+        except:
+            raise ImportError(
+                "ImportError: The 'scipy' library is not found. Please install",
+                "it using 'pip install scipy' to compute parameter importance.",
+            )
+
         if self._objective_values is None or len(self._parameters) == 0:
             raise ValueError("No trials have been conducted yet.")
 
@@ -699,14 +707,12 @@ class Study:
                 # For categorical parameters, use the index of the selected category
                 param_values = np.argmax(param.values[:completed_trials], axis=1)
 
-            # Calculate Spearman correlation
-            param_ranks = np.argsort(np.argsort(param_values))
-            objective_ranks = np.argsort(np.argsort(objective_values))
+            # Calculate Spearman correlation using scipy's implementation
+            correlation, _ = spearmanr(param_values, objective_values)
 
-            n = len(param_values)
-            correlation = 1 - (6 * np.sum((param_ranks - objective_ranks) ** 2)) / (
-                n * (n**2 - 1)
-            )
+            # Handle NaN values that might occur with constant parameters
+            if np.isnan(correlation):
+                correlation = 0.0
 
             importances[param_name] = abs(correlation)
 
