@@ -1,3 +1,3 @@
-from .solver import MARSOpt
+from .solver import Study, Trial
 
-__all__ = ["MARSOpt"]
+__all__ = ["Study", "Trial"]

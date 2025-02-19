@@ -7,8 +7,11 @@ COLORS = {
     "cyan": "\033[36m",
     "yellow": "\033[33m",
     "blue": "\033[34m",
+    "light_blue": "\033[38;5;117m",  # Açık mavi renk
     "green": "\033[32m",
+    "light_orange": "\033[38;5;215m",  # Açık turuncu renk
     "bold_white": "\033[1;37m",
+    "bold": "\033[1m",
     "reset": "\033[0m",
 }
 
@@ -35,10 +38,12 @@ class ColoredFormatter(logging.Formatter):
         str
             The formatted log message.
         """
-        return f"{self.formatTime(record, self.datefmt)} | {record.getMessage()}"
+        # Tarihi kalın yapıyoruz
+        formatted_time = f"{COLORS['bold']}{self.formatTime(record, self.datefmt)}{COLORS['reset']}"
+        return f"{formatted_time} | {record.getMessage()}"
 
 
-def setup_logger(name: str = "MARSOpt", log_file: Optional[str] = None) -> logging.Logger:
+def setup_logger(name: str = "marsopt", log_file: Optional[str] = None) -> logging.Logger:
     """
     Set up and configure a logger.
 
@@ -48,7 +53,7 @@ def setup_logger(name: str = "MARSOpt", log_file: Optional[str] = None) -> loggi
     Parameters
     ----------
     name : str, optional
-        The name of the logger (default is "MARSOpt").
+        The name of the logger (default is "marsopt").
     log_file : str, optional
         The file path to write logs to. If None, logging to a file is disabled.
 
@@ -89,12 +94,12 @@ class OptimizationLogger:
     Parameters
     ----------
     name : str, optional
-        Name of the logger (default is "MARSOpt").
+        Name of the logger (default is "marsopt").
     log_file : str, optional
         Path to the log file. If None, logs are not written to a file.
     """
 
-    def __init__(self, name: str = "MARSOpt", log_file: Optional[str] = None):
+    def __init__(self, name: str = "marsopt", log_file: Optional[str] = None):
         self.logger = setup_logger(name=name, log_file=log_file)
 
     def log_trial(
@@ -132,25 +137,30 @@ class OptimizationLogger:
         None
             Logs the information to the configured logger.
         """
+        # Daha okunaklı bir renk şeması
+        HEADER_COLOR = COLORS['light_orange'] + COLORS['bold']  # Açık turuncu ve kalın
+        PARAM_KEY_COLOR = COLORS['bold'] + COLORS['light_blue']  # Anahtarları kalın ve açık mavi yapalım
+        VALUE_COLOR = COLORS['yellow']
+        BEST_COLOR = COLORS['bold'] + COLORS['green']
+        RESET = COLORS['reset']
+        
+        # Format parameters with consistent styling - handle conditional formatting outside f-string
+        formatted_params = []
+        for k, v in params.items():
+            if isinstance(v, float):
+                formatted_value = f"{VALUE_COLOR}{v:.4f}{RESET}"
+            else:
+                formatted_value = f"{VALUE_COLOR}{v}{RESET}"
+            formatted_params.append(f"{PARAM_KEY_COLOR}{k}{RESET}: {formatted_value}")
+        
+        params_str = "\n    ".join(formatted_params)
 
-        # Format parameters with colors
-        params_str = "\n    ".join(
-            [
-                (
-                    f"{COLORS['blue']}{k}{COLORS['reset']}: {v:.4f}"
-                    if isinstance(v, float)
-                    else f"{COLORS['blue']}{k}{COLORS['reset']}: {v}"
-                )
-                for k, v in params.items()
-            ]
-        )
-
-        # Construct the log message
+        # Construct the log message with better visual hierarchy
         log_message = (
-            f"{COLORS['cyan']}Trial {iteration}{COLORS['reset']} | Elapsed Time: {time}s\n"
-            f"{COLORS['yellow']}Objective: {objective:}{COLORS['reset']}\n"
+            f"{HEADER_COLOR}Trial {iteration}{RESET} | Elapsed Time: {VALUE_COLOR}{time:.2f}s{RESET}\n"
+            f"Objective: {VALUE_COLOR}{objective:.6f}{RESET}\n"
             f"Parameters:\n    {params_str}\n"
-            f"{COLORS['green']}Best Iteration: {best_iteration}  Best Value: {best_value}{COLORS['reset']}\n"
+            f"{BEST_COLOR}Best Trial: {best_iteration}  Best Value: {best_value:.6f}{RESET}\n"
         )
 
         self.logger.info(log_message)
