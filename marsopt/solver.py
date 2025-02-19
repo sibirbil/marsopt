@@ -319,7 +319,7 @@ class Study:
         return (
             f"Study(n_init_points={self.n_init_points}, "
             f"initial_noise={self.initial_noise}, "
-            f"final_noise={self.final_noise}"
+            f"final_noise={self.final_noise}, "
             f"direction='{self.direction}', "
             f"verbose={self.verbose})"
         )
@@ -620,7 +620,6 @@ class Study:
             start_time = perf_counter()
 
             if iteration >= self.n_init_points:
-                self.progress = iteration / self.n_trials
                 self._current_n_elites = max(
                     1, round(elite_scale * self.progress * (1 - self.progress))
                 )
@@ -632,12 +631,15 @@ class Study:
                     + (self.initial_noise - self.final_noise) * cos_anneal
                 )
 
-                self._obj_arg_sort = np.argsort(
-                    direction_multipler * self._objective_values[:iteration]
-                )
                 self._current_cat_temp = 1.0 / (
                     self.final_noise + (1.0 - self.final_noise) * cos_anneal
                 )
+
+            self.progress = iteration / self.n_trials
+
+            self._obj_arg_sort = np.argsort(
+                direction_multipler * self._objective_values[:iteration]
+            )
 
             self._current_trial = Trial(self, iteration)
             obj_value: float = objective_function(self._current_trial)
@@ -663,6 +665,52 @@ class Study:
                 )
 
         return
+
+    def parameter_importance(self) -> Dict[str, float]:
+        """
+        Calculates the importance of each parameter based on correlation with objective values.
+        Uses Spearman correlation for both numerical and categorical parameters.
+
+        Returns
+        -------
+        Dict[str, float]
+            Dictionary mapping parameter names to their importance scores (absolute correlation values).
+            Higher values indicate stronger correlation with the objective.
+        """
+        if self._objective_values is None or len(self._parameters) == 0:
+            raise ValueError("No trials have been conducted yet.")
+
+        importances = {}
+        completed_trials = min(
+            int((self.progress * self.n_trials) + 1), len(self._objective_values)
+        )
+
+        objective_values = self._objective_values[:completed_trials]
+
+        # Handle optimization direction
+        if self.direction == "maximize":
+            objective_values = -objective_values  # Convert to minimization problem
+
+        for param_name, param in self._parameters.items():
+            if param.type in (int, float):
+                # For numerical parameters, use the raw values
+                param_values = param.values[:completed_trials]
+            else:
+                # For categorical parameters, use the index of the selected category
+                param_values = np.argmax(param.values[:completed_trials], axis=1)
+
+            # Calculate Spearman correlation
+            param_ranks = np.argsort(np.argsort(param_values))
+            objective_ranks = np.argsort(np.argsort(objective_values))
+
+            n = len(param_values)
+            correlation = 1 - (6 * np.sum((param_ranks - objective_ranks) ** 2)) / (
+                n * (n**2 - 1)
+            )
+
+            importances[param_name] = abs(correlation)
+
+        return dict(sorted(importances.items(), key=lambda x: x[1], reverse=True))
 
     @staticmethod
     def _validate_init_params(
