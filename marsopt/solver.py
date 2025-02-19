@@ -303,8 +303,8 @@ class Study:
         self.final_noise = final_noise
 
         self._rng = np.random.RandomState(random_state)
-        self._objective_values: NDArray = None
-        self._elapsed_times: NDArray = None
+        self._objective_values: NDArray[np.float64] = None
+        self._elapsed_times: NDArray[np.float64] = None
         self._current_trial: Optional[Trial] = None
         self._parameters: Dict[str, Parameter] = {}
 
@@ -312,7 +312,7 @@ class Study:
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._current_cat_temp: float = None
-        self._obj_arg_sort: NDArray = None
+        self._obj_arg_sort: NDArray[np.int64] = None
         self._logger = OptimizationLogger() if verbose else None
 
     def __repr__(self) -> str:
@@ -751,88 +751,88 @@ class Study:
             raise TypeError(f"verbose must be a boolean, got {type(verbose)}")
 
     @property
-    def best_trial(self) -> dict:
+    def best_trial(self) -> Dict[str, Any]:
         """
-        Returns the best trial's parameters and iteration number.
+        Get the best trial's details, including the iteration number,
+        objective value, execution time, and parameter values.
+
+        The best trial is determined based on the optimization direction
+        ('minimize' or 'maximize').
 
         Returns
         -------
-        dict
-            Dictionary containing the iteration number and parameter values of the best trial.
+        Dict[str, Any]
+            A dictionary containing the following keys:
+
+            - **iteration** (:obj:`int`)
+
+            The iteration number of the best trial.
+
+            - **objective_value** (:obj:`float`)
+
+            The best recorded objective function value.
+
+            - **trial_time** (:obj:`float`)
+
+            The execution time of the best trial in seconds.
+
+            - **params** (:obj:`Dict[str, Union[int, float, str]]`)
+
+            A dictionary of parameter values from the best trial. Keys are parameter names,
+            and values are their respective values (int, float, or categorical as a string).
+
         """
         best_iteration = int(self._obj_arg_sort[0])
 
-        # Pre-allocate dictionary with known size
-        best_trial_dict = {
+        return {
             "iteration": best_iteration,
-            "objective_value": self._objective_values[best_iteration],
+            "objective_value": float(self._objective_values[best_iteration]),
             "trial_time": float(self._elapsed_times[best_iteration]),
             "params": {
-                **{
-                    param_name: (
-                        int(param.values[best_iteration])
-                        if param.type == int
-                        else (
-                            float(param.values[best_iteration])
-                            if param.type == float
-                            else param.category_indexer.get_strings(
-                                np.argmax(param.values[best_iteration])
-                            )
+                param_name: (
+                    int(param.values[best_iteration])
+                    if param.type == int
+                    else (
+                        float(param.values[best_iteration])
+                        if param.type == float
+                        else param.category_indexer.get_strings(
+                            np.argmax(param.values[best_iteration])
                         )
                     )
-                    for param_name, param in self._parameters.items()
-                },
+                )
+                for param_name, param in self._parameters.items()
             },
         }
 
-        return best_trial_dict
-
     @property
-    def objective_values(self) -> NDArray:
+    def trials(self) -> List[Dict[str, Any]]:
         """
-        Returns the objective function values for all completed trials.
+        Get the complete history of all trials in the optimization process.
 
-        This property provides an array where each element represents the
-        objective function value obtained at a specific trial.
+        Each trial includes its iteration number, objective function value, execution time,
+        and parameter values.
 
         Returns
         -------
-        NDArray
-            A NumPy array containing the recorded objective function values for
-            all trials, ordered by their trial index.
-        """
-        return self._objective_values
+        List[Dict[str, Any]]
+            A list of dictionaries, where each dictionary represents a trial with the following keys:
 
-    @property
-    def elapsed_times(self) -> NDArray:
-        """
-        Returns the execution times of all completed trials.
+            - **iteration** (:obj:`int`)
 
-        This property provides an array where each element represents the time taken
-        to evaluate the objective function for a specific trial.
+            The iteration number of the trial.
 
-        Returns
-        -------
-        NDArray
-            A NumPy array containing the recorded execution times (in seconds)
-            for each trial, ordered by their trial index.
-        """
-        return self._elapsed_times
+            - **objective_value** (:obj:`float`)
 
-    @property
-    def trials(self) -> List[dict]:
-        """
-        Returns the complete history of all trials as a list of dictionaries.
-        Each dictionary represents one trial iteration with its parameters and results.
+            The objective function value for the trial.
 
-        Returns
-        -------
-        List[dict]
-            List of dictionaries where each dictionary contains:
-            - iteration: Trial iteration number
-            - objective_value: Objective function value
-            - trial_time: Execution time of the trial
-            - parameters: Dictionary of parameter values for that trial
+            - **trial_time** (:obj:`float`)
+
+            The execution time of the trial in seconds.
+
+            - **parameters** (:obj:`Dict[str, Union[int, float, str]]`)
+
+            A dictionary of parameter values from the trial. Keys are parameter names, 
+            and values are their respective values (int, float, or categorical as a string).
         """
         final_iteration = min(
             int((self.progress * self.n_trials) + 1), len(self._objective_values)
@@ -847,7 +847,7 @@ class Study:
                 "parameters": {},
             }
 
-            # Add parameter values for this iteration
+            # Store parameter values for this iteration
             for param_name, param in self._parameters.items():
                 if param.type == int:
                     value = int(param.values[iteration])
@@ -862,3 +862,35 @@ class Study:
             history.append(trial_dict)
 
         return history
+
+    @property
+    def objective_values(self) -> NDArray[np.float64]:
+        """
+        Returns the objective function values for all completed trials.
+
+        This property provides an array where each element represents the
+        objective function value obtained at a specific trial.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            A NumPy array containing the recorded objective function values for
+            all trials, ordered by their trial index.
+        """
+        return self._objective_values
+
+    @property
+    def elapsed_times(self) -> NDArray[np.float64]:
+        """
+        Returns the execution times of all completed trials.
+
+        This property provides an array where each element represents the time taken
+        to evaluate the objective function for a specific trial.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            A NumPy array containing the recorded execution times (in seconds)
+            for each trial, ordered by their trial index.
+        """
+        return self._elapsed_times

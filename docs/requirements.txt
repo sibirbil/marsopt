@@ -1,0 +1,4 @@
+numpy
+sphinx_autodoc_typehints
+furo
+myst-parser
