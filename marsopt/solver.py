@@ -319,7 +319,7 @@ class Study:
         return (
             f"Study(n_init_points={self.n_init_points}, "
             f"initial_noise={self.initial_noise}, "
-            f"finak_noise={self.final_noise}"
+            f"final_noise={self.final_noise}"
             f"direction='{self.direction}', "
             f"verbose={self.verbose})"
         )
