@@ -191,3 +191,32 @@ class Parameter:
                     extension = np.zeros((max_iter, required_width - current_width), dtype=np.float64)
                     self.values = np.hstack((self.values, extension))
             return
+
+    def add_iter(self, additional_iter: int) -> None:
+        """
+        Adds additional iterations by extending the values array.
+
+        Parameters
+        ----------
+        additional_iter : int
+            The number of additional iterations to add.
+
+        Raises
+        ------
+        ValueError
+            If additional_iter is less than or equal to zero.
+        """
+        if additional_iter <= 0:
+            raise ValueError("additional_iter must be greater than zero.")
+
+        if self.values is None:
+            raise ValueError("Values array has not been initialized.")
+
+        if self.values.ndim == 1:
+            # Extend 1D array (for numeric parameters)
+            extension = np.empty(additional_iter, dtype=self.values.dtype)
+            self.values = np.concatenate((self.values, extension))
+        else:
+            # Extend 2D array (for categorical parameters)
+            extension = np.zeros((additional_iter, self.values.shape[1]), dtype=self.values.dtype)
+            self.values = np.vstack((self.values, extension))

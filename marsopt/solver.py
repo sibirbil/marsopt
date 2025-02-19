@@ -556,23 +556,67 @@ class Study:
         if not callable(objective_function):
             raise TypeError("objective_function must be a callable function.")
 
-        best_value = float("inf")
+        ## check existing trial:
+        if self._objective_values is not None:
+            n_exist_trials = int(self._objective_values.size)
+            
+            # Find best iteration based on direction
+            if self.direction == "minimize":
+                best_iteration = np.argmin(self._objective_values[:n_exist_trials])
+                best_value = self._objective_values[best_iteration]
+            else:
+                best_iteration = np.argmax(self._objective_values[:n_exist_trials])
+                best_value = self._objective_values[best_iteration]
+                
+            total_trials = n_trials + n_exist_trials
+            self.n_trials = total_trials
 
-        if self.n_init_points is None:
-            self.n_init_points = round(np.sqrt(n_trials))
+            if self.final_noise is None:
+                self.final_noise = 1.0 / total_trials
 
-        if self.final_noise is None:
-            self.final_noise = 1.0 / n_trials
+            elite_scale: float = 2.0 * np.sqrt(total_trials)
 
-        self.n_trials = n_trials
-        self._objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
-        self._elapsed_times = np.empty(shape=(n_trials,), dtype=np.float64)
+            # Correctly use np.hstack with tuples
+            old_objective_values = self._objective_values
+            old_elapsed_times = self._elapsed_times
+            
+            self._objective_values = np.empty(shape=(total_trials,), dtype=np.float64)
+            self._elapsed_times = np.empty(shape=(total_trials,), dtype=np.float64)
+            
+            # Copy existing data
+            self._objective_values[:n_exist_trials] = old_objective_values
+            self._elapsed_times[:n_exist_trials] = old_elapsed_times
+            
+            for param in self._parameters.keys():
+                self._parameters[param].add_iter(n_trials)
 
-        best_iteration: int = None
-        elite_scale: float = 2.0 * np.sqrt(n_trials)
+        else:
+            n_exist_trials = 0
+            total_trials = n_trials
+            
+            if self.direction == "minimize":
+                best_value = float("inf")
+            else:
+                best_value = float("-inf")
+                
+            best_iteration = None
+
+            if self.final_noise is None:
+                self.final_noise = 1.0 / n_trials
+
+            self.n_trials = n_trials
+            self._objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
+            self._elapsed_times = np.empty(shape=(n_trials,), dtype=np.float64)
+
+            elite_scale: float = 2.0 * np.sqrt(n_trials)
+
+            if self.n_init_points is None:
+                self.n_init_points = round(np.sqrt(self.n_trials))
+
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
-        for iteration in range(self.n_trials):
+        # Start from the existing trials count
+        for iteration in range(n_exist_trials, total_trials):
             start_time = perf_counter()
 
             if iteration >= self.n_init_points:
@@ -599,10 +643,11 @@ class Study:
             obj_value: float = objective_function(self._current_trial)
 
             self._elapsed_times[iteration] = perf_counter() - start_time
-
             self._objective_values[iteration] = obj_value
 
-            if obj_value < best_value:
+            # Update best value based on optimization direction
+            if (self.direction == "minimize" and obj_value < best_value) or \
+            (self.direction == "maximize" and obj_value > best_value):
                 best_value = obj_value
                 best_iteration = iteration
 
@@ -617,7 +662,7 @@ class Study:
                 )
 
         return self
-
+    
     @staticmethod
     def _validate_init_params(
         n_init_points: Any,
@@ -740,7 +785,7 @@ class Study:
         }
 
         return best_trial_dict
-        
+
     @property
     def objective_values(self) -> NDArray:
         """
@@ -757,7 +802,6 @@ class Study:
         """
         return self._objective_values
 
-
     @property
     def elapsed_times(self) -> NDArray:
         """
@@ -773,7 +817,6 @@ class Study:
             for each trial, ordered by their trial index.
         """
         return self._elapsed_times
-
 
     @property
     def trials(self) -> List[dict]:
