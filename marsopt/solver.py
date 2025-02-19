@@ -831,7 +831,7 @@ class Study:
 
             - **parameters** (:obj:`Dict[str, Union[int, float, str]]`)
 
-            A dictionary of parameter values from the trial. Keys are parameter names, 
+            A dictionary of parameter values from the trial. Keys are parameter names,
             and values are their respective values (int, float, or categorical as a string).
         """
         final_iteration = min(
