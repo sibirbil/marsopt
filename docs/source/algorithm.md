@@ -19,9 +19,11 @@ This method conducts an iterative search over a parameter space that may contain
 5. **Integer Handling**  
    Integer parameters are sampled as continuous values and then probabilistically rounded to the nearest integers.
 
-Let $N$ be the total number of iterations (trials),  
-let $t$ be the index of the current iteration, with $0 \le t < N$,  
-and let $p_t = \frac{t}{N}$ be the **progress ratio**.
+Let the key variables be defined as:
+
+- $N$ : Total number of iterations (trials)
+- $t$ : Current iteration index, where $0 \le t < N$,  
+- $p_t$ : Progress ratio, defined as $\frac{t}{N}$
 
 ---
 
