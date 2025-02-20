@@ -678,13 +678,13 @@ class Study:
                     best_value = obj_value
                     best_iteration = iteration
 
-                    self._logger.log_trial(
-                        iteration=iteration + 1,
-                        params=self._current_trial.params,
-                        objective=obj_value,
-                        best_value=best_value,
-                        best_iteration=best_iteration,
-                    )
+                self._logger.log_trial(
+                    iteration=iteration + 1,
+                    params=self._current_trial.params,
+                    objective=obj_value,
+                    best_value=best_value,
+                    best_iteration=best_iteration,
+                )
 
         return
 
