@@ -1,5 +1,5 @@
-``marsopt.Study``
-==========================
+API Reference
+=============
 
 .. autoclass:: marsopt.Study
     :members:

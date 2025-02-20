@@ -1,6 +1,4 @@
-Below is a detailed **Getting Started** guide for using the **marsopt** package to perform parameter optimization using the **Study** and **Trial** classes. This guide walks you through installation, basic usage, key features, and advanced tips. 
-
----
+# Getting Started
 
 ## 1. Introduction
 

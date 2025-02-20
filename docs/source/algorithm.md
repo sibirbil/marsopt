@@ -1,3 +1,5 @@
+# Algorithm Overview
+
 ## **1. General Structure of the Algorithm**
 
 This method conducts an iterative search over a parameter space that may contain **continuous**, **integer**, and **categorical** variables. Its main components are:
@@ -183,6 +185,7 @@ If desired, a plot of \(T_{\text{cat}}(t)\) against \(t\) can show how the categ
 
 
 ---
+
 ## **6. Iterative Procedure**  
 Let:
 - \(N\) be the total number of iterations (trials).
