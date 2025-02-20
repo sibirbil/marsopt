@@ -2,3 +2,5 @@ numpy
 sphinx_autodoc_typehints
 furo
 myst-parser
+sphinx
+sphinx_rtd_theme
