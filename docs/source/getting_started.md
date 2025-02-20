@@ -236,5 +236,3 @@ study.optimize(objective, n_trials=50)
 
 
 `marsopt` retains its internal state and continues from the previously explored space.
-
----
