@@ -80,12 +80,32 @@ class OptimizationLogger:
     def __init__(self, name: str = "marsopt", log_file: Optional[str] = None):
         self.logger = setup_logger(name=name, log_file=log_file)
 
+    def log_start(self, n_trials: int) -> None:
+        """
+        Logs the start of the optimization process.
+
+        Parameters
+        ----------
+        n_trials : int
+            The total number of trials for optimization.
+
+        Returns
+        -------
+        None
+        """
+        # Format search space as a dictionary-like string
+
+        log_message = (
+            f"Optimization started with {n_trials} trials."
+        )
+
+        self.logger.info(log_message)
+
     def log_trial(
         self,
         iteration: int,
         params: Dict[str, float],
         objective: float,
-        time: float,
         best_iteration: int,
         best_value: float,
     ) -> None:

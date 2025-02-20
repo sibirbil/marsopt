@@ -591,6 +591,9 @@ class Study:
                 self._parameters[param].add_iter(n_trials)
 
         else:
+            if self.verbose:
+                self._logger.log_start(n_trials)
+            
             n_exist_trials = 0
             total_trials = n_trials
 
@@ -659,7 +662,6 @@ class Study:
                     iteration=iteration,
                     params=self._current_trial.params,
                     objective=obj_value,
-                    time=self._elapsed_times[iteration],
                     best_value=best_value,
                     best_iteration=best_iteration,
                 )
