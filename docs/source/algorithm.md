@@ -183,49 +183,57 @@ If desired, a plot of \(T_{\text{cat}}(t)\) against \(t\) can show how the categ
 
 
 ---
+## **6. Iterative Procedure**  
+Let:
+- \(N\) be the total number of iterations (trials).
+- \(n_{\text{init\_points}}\) be the number of initial trials that are sampled purely at random (commonly \(\text{round}(\sqrt{N})\) if not specified).
+- \(t\) be the index of the current iteration, with \(0 \le t < N\).
+- \(p_t = \frac{t}{N}\) be the **progress ratio**.
 
-## **6. Iterative Procedure**
+At **each iteration** \(t\) (from 0 up to \(N-1\)):
 
-At each iteration \(t\) (from 0 up to \(N-1\)):
+**If \(\,t < n_{\text{init\_points}}\):**  
+- **Randomly sample** all parameters (continuous, integer, and categorical) within their valid ranges.  
+- Skip steps 2, 3, and 4 below (since no elite-based adaptation is used yet).
 
-1. **Compute Progress**: 
+**Otherwise** (\(t \ge n_{\text{init\_points}}\)):  
+
+1. **Compute Progress**:  
    \[
-   p_t = \frac{t}{N}.
+   p_t \;=\; \frac{t}{N}.
    \]
 
-2. **Determine Elite Count**: 
-
-    \[
-    n_{\text{elite}}(t) =
-    \max \Bigl(1,\;
-    \text{round} \bigl(\alpha \sqrt{N} \cdot p_t \cdot (1 - p_t)\bigr)
-    \Bigr).
-    \]
-
+2. **Determine Elite Count**:  
+   \[
+   n_{\text{elite}}(t) 
+   \;=\; 
+   \max \Bigl(1,\; 
+   \text{round}\bigl(\alpha\,\sqrt{N}\,\cdot\,p_t\,(1 - p_t)\bigr)\Bigr),
+   \]
 
 3. **Update Noise (Cosine Annealing)**:  
+   \[
+   \eta(t) 
+   \;=\; 
+   \eta_{\text{final}}
+   \;+\;
+   \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr) 
+   \times
+   0.5\,\bigl(1 + \cos(\pi\,p_t)\bigr).
+   \]
 
-    \[
-    \eta(t) =
-    \eta_{\text{final}}
-    +
-    \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr) \cdot
-    0.5 \bigl(1 + \cos(\pi p_t)\bigr).
-    \]
-
-
-4. **Handle Parameters**:
-   - **Continuous**: Sample around the elites with \(\eta(t)\)-scaled noise, reflect if out of bounds.  
-   - **Integer**: Same as continuous, but use probabilistic rounding.  
-   - **Categorical**: Form an average one-hot vector from the elites, add noise, apply temperature-based softmax, then pick a category.
+4. **Handle Parameters**:  
+   - **Continuous**: Select an elite value, add \(\mathcal{N}(0,\sigma)\) noise scaled by \(\eta(t)\) and reflect if out of bounds.  
+   - **Integer**: Same as continuous, but use *probabilistic rounding* (fractional part decides rounding up/down).  
+   - **Categorical**: Form an average one-hot vector from the elites, add noise, apply a temperature-based softmax, then pick a category.
 
 5. **Evaluate Objective**:  
-   The newly sampled parameter set is passed into the objective function to obtain a score. This score is recorded along with its parameters.
+   - Pass the newly sampled parameter set to the objective function for a score.
 
 6. **Update Ranking**:  
-   The set of best trials may change; use their objective values to rank them for the next iteration.
+   - Keep track of the best \(n_{\text{elite}}(t)\) trials (“elites”) for the next iteration.
 
-This process repeats until \(t = N\), or until any stopping criterion is met. Early in the search, higher noise encourages exploration of broad regions, while later in the search, lower noise and fewer random jumps refine the search in promising areas.
+This process repeats until \(t = N\). Early in the search (\(t < n_{\text{init\_points}}\)), the algorithm explores broadly by drawing random samples. Once \(t \ge n_{\text{init\_points}}\), it transitions to the adaptive phase: higher noise in the beginning encourages wide exploration, whereas lower noise in later iterations focuses the search around the most promising solutions found so far.
 
 ---
 
