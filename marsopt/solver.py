@@ -358,14 +358,13 @@ class Study:
                 max_iter=self.n_trials, param_type_or_categories=param_type
             )
             self._parameters[name] = param
-            
+
         else:
             if param.type != param_type:
                 raise TypeError(
                     f"Parameter '{name}' has already been registered with type {param.type}, "
                     f"but an attempt was made to register it as type {param_type}. Ensure consistency."
                 )
-
 
         if self._current_trial.trial_id < self.n_init_points:
             value = self._sample_value(low, high, log)
@@ -448,8 +447,7 @@ class Study:
                     f"Parameter '{name}' has already been registered with type {param.type}, "
                     f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
                 )
-            
-            
+
             param.set_values(
                 max_iter=self.n_trials, param_type_or_categories=categories
             )
@@ -608,7 +606,7 @@ class Study:
         else:
             if self.verbose:
                 self._logger.log_start(n_trials)
-            
+
             n_exist_trials = 0
             total_trials = n_trials
 
@@ -731,7 +729,7 @@ class Study:
             if np.isnan(correlation):
                 correlation = 0.0
 
-            importances[param_name] = abs(correlation)
+            importances[param_name] = float(abs(correlation))
 
         return dict(sorted(importances.items(), key=lambda x: x[1], reverse=True))
 
