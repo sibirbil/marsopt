@@ -784,10 +784,16 @@ class Study:
                 raise ValueError(f"n_init_points must be positive, got {n_init_points}")
 
         # random_state validation
-        if random_state is not None and not isinstance(random_state, int):
-            raise TypeError(
-                f"random_state must be None or an integer, got {type(random_state)}"
-            )
+        if random_state is not None:
+            if not isinstance(random_state, int):
+                raise TypeError(
+                    f"random_state must be None or an integer, got {type(random_state)}"
+                )
+
+            if random_state < 0 or random_state > np.iinfo(np.uint32).max:
+                raise ValueError(
+                    f"random_state must be an None or integer between 0 and {np.iinfo(np.uint32).max}, inclusive. Got {random_state} instead."
+                )
 
         # initial_noise validation
         if not isinstance(initial_noise, (int, float)):
