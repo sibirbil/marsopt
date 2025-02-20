@@ -870,7 +870,7 @@ class Study:
             "iteration": best_iteration + 1,
             "objective_value": float(self._objective_values[best_iteration]),
             "trial_time": float(self._elapsed_times[best_iteration]),
-            "params": {
+            "parameters": {
                 param_name: (
                     int(param.values[best_iteration])
                     if param.type == int
