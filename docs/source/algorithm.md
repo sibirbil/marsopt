@@ -47,7 +47,7 @@ where:
 ### Visualizing $n_{\text{elite}}(t)$
 If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number of elite trials starts near 0 or 1 at $t=0$, grows to a maximum in the middle iterations, and then decreases again near $t=N$.
 
-![Evolution of Elite Individuals Over Time](_static/number_of_elites_100.png)
+![Evolution of Elite Individuals Over Time](_static/algorithm/number_of_elites_100.png)
 
 ---
 
@@ -79,7 +79,7 @@ Hence, the noise transitions gradually from a larger initial value down to a sma
 ### Visualizing $\eta(t)$
 A plot of $\eta(t)$ across iterations $t$ typically shows a smooth curve descending from $\eta_{\text{init}}$ at $t=0$ to $\eta_{\text{final}}$ at $t=N$.
 
-![Evolution of Noise Level Over Time](_static/noise_level_100.png)
+![Evolution of Noise Level Over Time](_static/algorithm/noise_level_100.png)
 
 ---
 
@@ -225,7 +225,7 @@ I'll help split those equations to be on separate lines:
 #### Visualizing $T_{\text{cat}}(t)$
 A plot of $T_{\text{cat}}(t)$ against $t$ can show how the categorical temperature starts high at $t=0$, allowing broad exploration, then gradually decreases, focusing more on the best categories over time.
 
-![Evolution of Categorical Temperature Over Time](_static/categorical_temperature_100.png)
+![Evolution of Categorical Temperature Over Time](_static/algorithm/categorical_temperature_100.png)
 
 ## 6. Iterative Procedure
 
