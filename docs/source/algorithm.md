@@ -232,7 +232,7 @@ This process repeats until \(t = N\), or until any stopping criterion is met. Ea
 ## **Additional Notes** 
 
 - **Reflections at Boundaries**  
-  Ensuring that samples do not remain outside a valid range (for continuous variables) often involves a “mirror” or “reflect” step.  
+  Ensuring that samples do not remain outside a valid range often involves a “mirror” or “reflect” step.  
 - **Log-Scale Sampling**  
   If a parameter is specified as log-scaled \(\in [\text{low}, \text{high}]\), sampling can be done in \(\log\)-space, i.e., \(\exp\bigl(\text{Uniform}(\log(\text{low}),\,\log(\text{high}))\bigr)\).  
 - **Temperature**  
