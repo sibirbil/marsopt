@@ -544,14 +544,14 @@ class Study:
             return self._rng.uniform(low, high)
 
     def optimize(
-        self, objective_function: Callable[[Trial], float], n_trials: int
+        self, objective_function: Callable[[Trial], Union[float, int]], n_trials: int
     ) -> None:
         """
         Runs the optimization loop.
 
         Parameters
         ----------
-        objective_function : Callable[[Trial], float]
+        objective_function : Callable[[Trial], Union[float, int]]
             The function to optimize.
         n_trials : int
             The number of trials.
@@ -659,25 +659,31 @@ class Study:
 
             self._current_trial = Trial(self, iteration)
             obj_value: float = objective_function(self._current_trial)
+            
+            if not isinstance(obj_value, (int, float)):
+                raise TypeError("Currently, only numerical outputs (int or float) are supported, but the function "
+                                f"returned a value of type {type(obj_value)}. Please ensure that the function returns a "
+                                "numerical value.")
 
             self._elapsed_times[iteration] = perf_counter() - start_time
             self._objective_values[iteration] = obj_value
 
             # Update best value based on optimization direction
-            if (self.direction == "minimize" and obj_value < best_value) or (
-                self.direction == "maximize" and obj_value > best_value
-            ):
-                best_value = obj_value
-                best_iteration = iteration
-
             if self.verbose:
-                self._logger.log_trial(
-                    iteration=iteration + 1,
-                    params=self._current_trial.params,
-                    objective=obj_value,
-                    best_value=best_value,
-                    best_iteration=best_iteration,
-                )
+                if (self.direction == "minimize" and obj_value < best_value) or (
+                    self.direction == "maximize" and obj_value > best_value
+                ):
+                    best_value = obj_value
+                    best_iteration = iteration
+
+
+                    self._logger.log_trial(
+                        iteration=iteration + 1,
+                        params=self._current_trial.params,
+                        objective=obj_value,
+                        best_value=best_value,
+                        best_iteration=best_iteration,
+                    )
 
         return
 
