@@ -29,19 +29,18 @@ Let the key variables be defined as:
 
 ## 2. Number of Elite Trials $n_{\text{elite}}$
 
-At each iteration $t$, the number of elite trials selected to guide the next sample can be defined by a function that depends on the progress ratio $p_t$. One commonly used form is:
+At each iteration $t$, the number of elite trials selected to guide the next sample can be defined by a function that depends on the progress ratio $p_t$:
 
 $$
 n_{\text{elite}}(t) 
 = 
 \max \Bigl(1,\; 
-\text{round} \bigl(\alpha \sqrt{N}\cdot p_t\cdot(1 - p_t)\bigr)
+\text{round} \bigl(2 \sqrt{N}\cdot p_t\cdot(1 - p_t)\bigr)
 \Bigr)
 $$
 
 where:
 
-- $\alpha$ is a constant (for example, $\alpha = 2$) that scales according to the total number of trials $N$.  
 - The factor $p_t(1 - p_t)$ creates a bell-shaped curve over $t\in[0,N]$, reaching its maximum around $t \approx \frac{N}{2}$.  
 - The use of $\max(1,\dots)$ ensures that at least one trial is always considered elite.
 
@@ -59,10 +58,8 @@ Let $\eta_{\text{init}}$ be the **initial noise** (e.g., 0.2) and $\eta_{\text{f
 $$
 \text{cos}\_\text{anneal}(t) 
 = 
-0.5 \bigl(1 + \cos(\pi p_t)\bigr),
+0.5 \bigl(1 + \cos(\pi p_t)\bigr)
 $$
-
-where $p_t = \frac{t}{N}$.
 
 Then, the noise level $\eta(t)$ can be updated as:
 
@@ -96,13 +93,13 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
    One of the elite trials (in terms of objective value) is chosen at random. Let its parameter be $x_{\text{elite}}$.
 
 2. **Add Noise**  
-   Draw a random value $\delta \sim \mathcal{N}(0,\sigma)$, where $\sigma$ depends on $\eta(t)$ and possibly the range $\text{high}-\text{low}$. A typical approach is:
+   Draw a random value $\delta \sim \mathcal{N}(0,\eta(t))$:
 
    $$
    x_{\text{new}} =
    x_{\text{elite}} 
    + 
-   \delta \cdot (\text{high} - \text{low}) \cdot \eta(t).
+   \delta \cdot (\text{high} - \text{low})
    $$
 
 3. **Reflect at Boundaries**  
@@ -197,15 +194,11 @@ I'll help split those equations to be on separate lines:
    Define a **categorical temperature** $T_{\text{cat}}(t)$ that typically **increases** over iterations (as $\eta(t)$ **decreases**). One example ties it to the same cosine-annealing schedule used for $\eta(t)$. For instance,
 
    $$
-   T_{\text{cat}}(t) = \frac{1}{\eta_{\text{final}} + (1-\eta_{\text{final}})\,\mathrm{cos\_anneal}(t)}
-   $$
-
-   $$
    \mathrm{cos\_anneal}(t) = 0.5\,(1 + \cos(\pi p_t))
    $$
 
    $$
-   p_t = \frac{t}{N}
+   T_{\text{cat}}(t) = \frac{1}{\eta_{\text{final}} + (1-\eta_{\text{final}})\,\mathrm{cos\_anneal}(t)}
    $$
 
 2. **Softmax Conversion**  

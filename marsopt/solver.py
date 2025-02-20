@@ -597,7 +597,7 @@ class Study:
             if self.final_noise is None:
                 self.final_noise = 1.0 / total_trials
 
-            elite_scale: float = 2.0 * np.sqrt(total_trials)
+
 
             # Correctly use np.hstack with tuples
             old_objective_values = self._objective_values
@@ -634,11 +634,10 @@ class Study:
             self._objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
             self._elapsed_times = np.empty(shape=(n_trials,), dtype=np.float64)
 
-            elite_scale: float = 2.0 * np.sqrt(n_trials)
-
             if self.n_init_points is None:
                 self.n_init_points = round(np.sqrt(self.n_trials))
-
+                
+        elite_scale: float = 2.0 * np.sqrt(total_trials)
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
         # Start from the existing trials count
