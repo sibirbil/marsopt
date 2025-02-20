@@ -358,6 +358,14 @@ class Study:
                 max_iter=self.n_trials, param_type_or_categories=param_type
             )
             self._parameters[name] = param
+            
+        else:
+            if param.type != param_type:
+                raise TypeError(
+                    f"Parameter '{name}' has already been registered with type {param.type}, "
+                    f"but an attempt was made to register it as type {param_type}. Ensure consistency."
+                )
+
 
         if self._current_trial.trial_id < self.n_init_points:
             value = self._sample_value(low, high, log)
@@ -435,6 +443,13 @@ class Study:
             self._parameters[name] = param
 
         else:
+            if param.type != type(categories):
+                raise TypeError(
+                    f"Parameter '{name}' has already been registered with type {param.type}, "
+                    f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
+                )
+            
+            
             param.set_values(
                 max_iter=self.n_trials, param_type_or_categories=categories
             )
