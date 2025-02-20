@@ -325,7 +325,12 @@ class Study:
         )
 
     def _suggest_numerical(
-        self, name: str, low: float, high: float, param_type: type, log: bool
+        self,
+        name: str,
+        low: Union[int, float],
+        high: Union[int, float],
+        param_type: type,
+        log: bool,
     ) -> Union[float, int]:
         """
         Suggests a numerical parameter value.
@@ -334,9 +339,9 @@ class Study:
         ----------
         name : str
             The name of the parameter.
-        low : float
+        low : Union[int, float]
             The lower bound for the parameter.
-        high : float
+        high : Union[int, float]
             The upper bound for the parameter.
         param_type : type
             The type of parameter (int or float).
@@ -634,6 +639,7 @@ class Study:
         # Start from the existing trials count
         for iteration in range(n_exist_trials, total_trials):
             start_time = perf_counter()
+            self.progress = iteration / self.n_trials
 
             if iteration >= self.n_init_points:
                 self._current_n_elites = max(
@@ -650,8 +656,6 @@ class Study:
                 self._current_cat_temp = 1.0 / (
                     self.final_noise + (1.0 - self.final_noise) * cos_anneal
                 )
-
-            self.progress = iteration / self.n_trials
 
             self._obj_arg_sort = np.argsort(
                 direction_multipler * self._objective_values[:iteration]
@@ -701,7 +705,7 @@ class Study:
         """
         try:
             from scipy.stats import spearmanr
-        except:
+        except ImportError:
             raise ImportError(
                 "ImportError: The 'scipy' library is not found. Please install",
                 "it using 'pip install scipy' to compute parameter importance.",
@@ -858,7 +862,7 @@ class Study:
 
             The execution time of the best trial in seconds.
 
-            - **params** (:obj:`Dict[str, Union[int, float, str]]`)
+            - **parameters** (:obj:`Dict[str, Union[int, float, str]]`)
 
             A dictionary of parameter values from the best trial. Keys are parameter names,
             and values are their respective values (int, float, or categorical as a string).
