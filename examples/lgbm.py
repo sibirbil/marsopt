@@ -1,3 +1,14 @@
+"""
+LightGBM Hyperparameter Optimization using marsopt
+
+This script demonstrates how to optimize LightGBM hyperparameters using MarsOpt.
+
+- Loads the Boston Housing dataset.
+- Defines an objective function that trains a LightGBM model.
+- Uses MarsOpt to optimize hyperparameters for better performance.
+- Prints the best trial with optimal parameters and RMSE.
+"""
+
 from lightgbm import LGBMRegressor
 from marsopt import Study, Trial
 from sklearn.model_selection import train_test_split
