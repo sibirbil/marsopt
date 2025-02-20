@@ -174,6 +174,11 @@ class Trial:
                 f"Parameter '{name}': 'categories' must be a list, got {type(categories)}"
             )
 
+        if any(not isinstance(cat, str) for cat in categories):
+            raise TypeError(
+                f"Parameter '{name}': all items in 'categories' must be strings."
+            )
+
         categories_tuple = tuple(categories)
         self._validate_categorical_cached(name, categories_tuple)
         self._validated_params.add(name)
