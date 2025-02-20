@@ -672,7 +672,7 @@ class Study:
 
             if self.verbose:
                 self._logger.log_trial(
-                    iteration=iteration,
+                    iteration=iteration + 1,
                     params=self._current_trial.params,
                     objective=obj_value,
                     best_value=best_value,
@@ -854,7 +854,7 @@ class Study:
         best_iteration = int(self._obj_arg_sort[0])
 
         return {
-            "iteration": best_iteration,
+            "iteration": best_iteration + 1,
             "objective_value": float(self._objective_values[best_iteration]),
             "trial_time": float(self._elapsed_times[best_iteration]),
             "params": {
@@ -910,7 +910,7 @@ class Study:
 
         for iteration in range(final_iteration):
             trial_dict = {
-                "iteration": iteration,
+                "iteration": iteration + 1,
                 "objective_value": float(self._objective_values[iteration]),
                 "trial_time": float(self._elapsed_times[iteration]),
                 "parameters": {},

@@ -1,7 +1,3 @@
-Below is an expanded version of the `getting_started.md` file, presented in **English**, with additional details and references to **real-world hyperparameter optimization** scenarios.
-
----
-
 # Getting Started
 
 ## 1. Introduction
@@ -29,12 +25,6 @@ Install `marsopt` using `pip`:
 
 ```bash
 pip install marsopt
-```
-
-If you plan to use the parameter importance features, you should also ensure `scipy` is installed:
-
-```bash
-pip install scipy
 ```
 
 ---
@@ -90,67 +80,34 @@ You then **return** a **float** that indicates your objective value (or loss).
 Below is a simplified yet demonstrative example of how to use `marsopt` to optimize a set of **typical machine learning hyperparameters**—learning rate, number of layers, optimizer type, and dropout rate:
 
 ```python
-import numpy as np
 from marsopt import Study, Trial
+import numpy as np
 
 def objective(trial: Trial) -> float:
-    """
-    Example objective function simulating a model's performance.
-    We're optimizing:
-      - learning_rate (float)
-      - num_layers (int)
-      - optimizer_type (categorical)
-      - dropout_rate (float)
-    
-    This function returns a single float to be minimized.
-    """
-
-    # 1) Suggest hyperparameters
-    learning_rate = trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True)
-    num_layers = trial.suggest_int("num_layers", 1, 5)
+    lr = trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True)
+    layers = trial.suggest_int("num_layers", 1, 5)
     optimizer = trial.suggest_categorical("optimizer", ["adam", "sgd", "rmsprop"])
-    dropout_rate = trial.suggest_float("dropout_rate", 0.1, 0.5)
-    
-    # 2) Simulate model performance (synthetic)
-    #    In a real case, you would train a model here (e.g., PyTorch or scikit-learn)
-    #    and compute a validation loss or metric.
 
-    # Below is a hypothetical "true" score function:
-    lr_score = -3 * (np.log10(learning_rate) + 3) ** 2  # best around 1e-3
-    layer_score = np.log1p(num_layers) * 20             # more layers is better, but diminishing returns
-    optimizer_scores = {"adam": 10.0, "rmsprop": 50.0, "sgd": 10.0}
-    opt_score = optimizer_scores[optimizer]
-    dropout_score = -10 * (dropout_rate - 0.3) ** 2     # best around 0.3
+    score = -5 * (np.log10(lr) + 3) ** 2  
+    score += np.log1p(layers) * 10  
+    score += {"adam": 15, "sgd": 5, "rmsprop": 20}[optimizer]
 
-    # Combine them into a single score. We'll say "higher is better" for the moment,
-    # but since 'direction' is set to 'minimize', we return the negative of it.
-    raw_score = lr_score + layer_score + opt_score + dropout_score + 10
-    noise = np.random.normal(0, 0.1)  # add random noise
+    return score 
 
-    # Return negative (we want to minimize the objective)
-    return -(raw_score + noise)
-
-# 3) Create and run a Study
-study = Study(
-    direction="minimize",
-    random_state=42,
-    verbose=True,
-)
-
-n_trials = 100
-study.optimize(objective, n_trials)
-
-# 4) Retrieve best trial and more info
-best = study.best_trial
-print("Best trial iteration:", best["iteration"])
-print("Best trial objective:", best["objective_value"])
-print("Best trial parameters:", best["params"])
+# Run optimization
+study = Study(direction="minimize", random_state=42) # Minimize the  score
+study.optimize(objective, n_trials=50)
+```
+```
+[I 2025-02-20 19:56:20, 16] Optimization started with 50 trials.
+[I 2025-02-20 19:56:20, 17] Trial 1 finished with value: -32.841185 and parameters: {'learning_rate': 0.001329, 'num_layers': 5, 'optimizer': adam}. Best is trial 0 with value: -32.841185.
+[I 2025-02-20 19:56:20, 18] Trial 2 finished with value: -30.738093 and parameters: {'learning_rate': 0.006174, 'num_layers': 3, 'optimizer': rmsprop}. Best is trial 0 with value: -32.841185.
+[I 2025-02-20 19:56:20, 18] Trial 3 finished with value: -6.086478 and parameters: {'learning_rate': 0.039676, 'num_layers': 3, 'optimizer': sgd}. Best is trial 0 with value: -32.841185.
+...
+...
+[I 2025-02-20 19:56:20, 48] Trial 50 finished with value: -37.847763 and parameters: {'learning_rate': 0.001313, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
 ```
 
-### In a Real-World Scenario
-
-- Instead of the synthetic function, you might build and train a **neural network** (e.g., using PyTorch, TensorFlow, or another framework), measure your **validation loss** or **metric**, and return that value.  
-- If you want to **maximize accuracy**, you can simply return `-accuracy` when using `direction="minimize"`, or switch the study direction to `"maximize"` and return `accuracy` directly.
 
 ---
 
@@ -161,28 +118,71 @@ print("Best trial parameters:", best["params"])
 After the optimization completes, you can inspect the details of each trial:
 
 ```python
-all_trials = study.trials
-for t in all_trials[:5]:  # print first 5
-    print(f"Iteration: {t['iteration']}, Objective: {t['objective_value']}, "
-          f"Params: {t['parameters']}")
+study.trials
+```
+
+```python
+[{'iteration': 1,
+  'objective_value': -32.84118472952258,
+  'trial_time': 0.000260959001025185,
+  'parameters': {'learning_rate': 0.0013292918943162175,
+   'num_layers': 5,
+   'optimizer': 'adam'}},
+ {'iteration': 2,
+  'objective_value': -30.738093352759925,
+  'trial_time': 0.0001224999978148844,
+  'parameters': {'learning_rate': 0.006173770394704574,
+   'num_layers': 3,
+   'optimizer': 'rmsprop'}},
+  ...
+ {'iteration': 50,
+  'objective_value': -37.84776341066681,
+  'trial_time': 0.00016675000006216578,
+  'parameters': {'learning_rate': 0.001312740598216683,
+   'num_layers': 5,
+   'optimizer': 'rmsprop'}}]
 ```
 
 Each trial dictionary contains:
-- **iteration**: The trial index (1-based or 0-based depending on implementation).  
+- **iteration**: The trial index.  
 - **objective_value**: The final metric or loss returned by your `objective` function.  
 - **trial_time**: How long that trial took to run.  
 - **parameters**: A dictionary of all hyperparameters suggested for that trial.
+
+####  5.1.1 Best Trial
+
+```python
+
+study.best_trial
+```
+
+```python
+{'iteration': 35, 
+ 'objective_value': -37.917443575884434, 
+ 'trial_time': 0.0003397920008865185, 
+ 'params': {'learning_rate': 0.0010127390829420338, 
+  'num_layers': 5, 
+  'optimizer': 'rmsprop'}}
+```
 
 ### 5.2. Objective Values & Elapsed Times
 
 Sometimes you want arrays of all objective values to quickly visualize or analyze them:
 
 ```python
-obj_values = study.objective_values
-times = study.elapsed_times
+study.objective_values
+```
 
-print("Objective values:", obj_values)
-print("Elapsed times:", times)
+```python
+array([-32.84118473, -30.73809335,  -6.08647779, ..., -37.84776341])
+```
+
+```python
+study.elapsed_times
+```
+
+```python
+array([2.60959001e-04, 1.22499998e-04, 1.15458002e-04, ..., 1.66750000e-04])
 ```
 
 ---
@@ -192,14 +192,17 @@ print("Elapsed times:", times)
 `marsopt` can provide a quick measure of parameter importance via **Spearman correlation**:
 
 ```python
-importances = study.parameter_importance()
-print("Parameter Importances:")
-for param, importance in importances.items():
-    print(f"{param}: {importance:.4f}")
+study.parameter_importance()
+```
+
+```python
+{'optimizer': 0.6924193652047251,
+ 'num_layers': 0.655940963922529,
+ 'learning_rate': 0.052292917166866744}
 ```
 
 - This calculates the absolute Spearman correlation coefficient between each parameter and the objective values.  
-- It can offer a **rough** idea of which hyperparameters most strongly affect model performance. (Requires `scipy` to be installed.)
+- It can offer a **rough** idea of which hyperparameters most strongly affect model performance. Requires `scipy` to be installed.
 
 ---
 
@@ -222,27 +225,16 @@ Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` d
 If you decide 100 trials aren’t enough, you can resume with additional trials:
 
 ```python
-# Add 50 more trials
 study.optimize(objective, n_trials=50)
 ```
+```
+[I 2025-02-20 20:17:46, 688] Trial 51 finished with value: -37.917177 and parameters: {'learning_rate': 0.001021, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+[I 2025-02-20 20:17:46, 689] Trial 52 finished with value: -37.066078 and parameters: {'learning_rate': 0.002586, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+...
+[I 2025-02-20 20:17:46, 722] Trial 100 finished with value: -37.908955 and parameters: {'learning_rate': 0.000909, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 93 with value: -37.917579.
+```
+
 
 `marsopt` retains its internal state and continues from the previously explored space.
-
----
-
-## 8. Common Errors and Troubleshooting
-
-1. **Parameter Ranges**:  
-   - Ensure for `suggest_float()` or `suggest_int()`, the `low` argument is strictly less than `high`.  
-   - For `log=True`, make sure both `low` and `high` are > 0.
-
-2. **Return Type**:  
-   - The `objective` function **must** return a single `float`. Returning `None` or an array will cause errors.
-
-3. **No Trials Conducted**:  
-   - Calling methods like `study.best_trial` before any trials are run will raise an exception. Make sure to call `study.optimize()` first.
-
-4. **Categorical Values**:  
-   - `suggest_categorical()` requires a non-empty list of categories.  
 
 ---
