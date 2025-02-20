@@ -130,59 +130,107 @@ Thus, a value close to 10.7 is more likely to become 11 than 10, while a value c
 
 ## 5. Categorical Parameters: One-Hot and Softmax
 
-Categorical parameters are represented as **one-hot vectors**. Suppose there are $k$ possible categories $c_1, c_2, \dots, c_k$. Each trial stores a vector of length $k$, for example $[1,0,0]$ if category $c_1$ is chosen, $[0,1,0]$ if $c_2$ is chosen, etc.
+When dealing with **categorical** parameters that can take one of $k$ possible values (categories), each trial's categorical choice is stored as a **one-hot vector** in $\mathbb{R}^k$. For instance, if the possible categories are ${c_1, c_2, \dots, c_k}$, then choosing category $c_1$ corresponds to the vector $[1, 0, 0, \dots, 0]$, choosing $c_2$ corresponds to $[0, 1, 0, \dots, 0]$, and so on.
 
-### 5.1. Averaging and Noise
+---
 
-Let $\mathbf{v}_1, \mathbf{v}_2, \dots, \mathbf{v}_{n_{\text{elite}}}$ be the one-hot vectors of the best $n_{\text{elite}}(t)$ trials. Compute the component-wise mean:
+### 5.1. Averaging and Noise (Per-Dimension)
+
+Given a set of **elite** one-hot vectors $\{\mathbf{v}_1, \mathbf{v}_2, \dots, \mathbf{v}_{n_{\text{elite}}}\},$ we first compute their **component-wise average**:
 
 $$
 \overline{\mathbf{v}}
-= 
-\frac{1}{n_{\text{elite}}(t)} 
+=
+\frac{1}{n_{\text{elite}}(t)}
 \sum_{i=1}^{n_{\text{elite}}(t)}
 \mathbf{v}_i.
 $$
 
-Then add Gaussian noise $\mathbf{z}$ with scale $\eta(t)$, typically ensuring the result stays within $[0,1]$ by reflection if necessary.
+This produces a real-valued vector 
+$
+\overline{\mathbf{v}} = [\overline{v}_1,\;\overline{v}_2,\;\dots,\;\overline{v}_k],
+$
+where each $\overline{v}_j \in [0,1]$. Since each $\mathbf{v}_i$ is one-hot, $\overline{v}_j$ represents the **fraction** of elite vectors that chose category $j$.
+
+#### Adding Noise per Dimension
+
+1. **Gaussian Noise Sample**  
+   For each coordinate $j = 1,\ldots,k$, draw an independent Gaussian noise term 
+
+   $$
+   z_j \sim \mathcal{N}(0,\;\eta(t)),
+   $$
+   
+   where $\eta(t)$ is the current noise scale.
+
+2. **Perturb the Mean Vector**  
+   Add each noise sample $z_j$ to the corresponding component $\overline{v}_j$:
+
+   $$
+   m_j = \overline{v}_j + z_j,
+   $$
+
+   producing the **noise-perturbed vector**
+
+   $$
+   \mathbf{m} = [m_1,\; m_2,\;\dots,\;m_k].
+   $$
+
+3. **Reflect Out-of-Bounds Components**  
+   If a coordinate $m_j$ falls below $0$ or above $1$, **reflect** it back into the valid range $[0,1]$. For example:
+   - If $m_j < 0$, set $m_j \leftarrow -m_j$. Repeat if still negative.  
+   - If $m_j > 1$, set $m_j \leftarrow 2 - m_j$. Repeat if still above $1$.
+
+This ensures that each dimension remains in $[0,1]$, even after adding noise.
+
+---
 
 ### 5.2. Temperature and Softmax
 
-A temperature parameter $T_{\text{cat}}(t)$ is introduced to control how sharply categories are chosen. One approach is to define:
+Having obtained the noise-perturbed vector $\mathbf{m}$, we convert these $m_j$ values into a probability distribution over the $k$ categories using a **temperature-scaled softmax**.
 
-$$
-T_{\text{cat}}(t)
-=
-\frac{1}{\eta_{\text{final}} + (1-\eta_{\text{final}})\text{cos}\_\text{anneal}(t)},
-$$
+I'll help split those equations to be on separate lines:
 
-where
+1. **Temperature Schedule**  
+   Define a **categorical temperature** $T_{\text{cat}}(t)$ that typically **increases** over iterations (as $\eta(t)$ **decreases**). One example ties it to the same cosine-annealing schedule used for $\eta(t)$. For instance,
 
-$$
-\text{cos}\_\text{anneal}(t)
-=
-0.5(1 + \cos(\pi p_t)).
-$$
+   $$
+   T_{\text{cat}}(t) = \frac{1}{\eta_{\text{final}} + (1-\eta_{\text{final}})\,\mathrm{cos\_anneal}(t)}
+   $$
 
-After adding noise to $\overline{\mathbf{v}}$, each component $m_j$ represents the "score" for category $j$. These scores are converted to probabilities $\{\pi_1,\dots,\pi_k\}$ via a softmax scaled by $T_{\text{cat}}(t)$:
+   $$
+   \mathrm{cos\_anneal}(t) = 0.5\,(1 + \cos(\pi p_t))
+   $$
 
-$$
-\pi_j
-=
-\frac{\exp(m_j T_{\text{cat}}(t))}
-{\sum_{r=1}^k \exp(m_r T_{\text{cat}}(t))},
-\quad
-j=1,\dots,k.
-$$
+   $$
+   p_t = \frac{t}{N}
+   $$
 
-Finally, a category $c_j$ is sampled with probability $\pi_j$, and the corresponding one-hot vector is set to $[0,\dots,1,\dots,0]$ with 1 at position $j$.
+2. **Softmax Conversion**  
+   Interpret each $m_j$ as a "score" for category $j$. Then compute the softmax probability
+   
+   $$
+   \pi_j 
+   =
+   \frac{\exp(m_j\,T_{\text{cat}}(t))}
+        {\sum_{r=1}^{k}\,\exp(m_r\,T_{\text{cat}}(t))},
+   \quad
+   j = 1,\dots,k.
+   $$
+
+3. **Sample a Category**  
+   Draw one category $j$ at random according to the probabilities ${\pi_1,\dots,\pi_k}$. The resulting **one-hot vector** is
+
+   $$
+   [\,0,\;\dots,\;1,\;\dots,\;0\,]
+   \quad
+   (\text{with the }j\text{-th element set to 1}).
+   $$
 
 #### Visualizing $T_{\text{cat}}(t)$
 A plot of $T_{\text{cat}}(t)$ against $t$ can show how the categorical temperature starts high at $t=0$, allowing broad exploration, then gradually decreases, focusing more on the best categories over time.
 
 ![Evolution of Categorical Temperature Over Time](_static/categorical_temperature_100.png)
-
----
 
 ## 6. Iterative Procedure
 
@@ -237,19 +285,6 @@ At **each iteration** $t$ (from 0 up to $N-1$):
    - Pass the newly sampled parameter set to the objective function for a score.
 
 6. **Update Ranking**:  
-   - Keep track of the best $n_{\text{elite}}(t)$ trials ("elites") for the next iteration.
+   - Keep track of the $n_{\text{elite}}(t)$ for the next iteration.
 
 This process repeats until $t = N$. Early in the search ($t < n_{\text{init}\_\text{points}}$), the algorithm explores broadly by drawing random samples. Once $t \ge n_{\text{init}\_\text{points}}$, it transitions to the adaptive phase: higher noise in the beginning encourages wide exploration, whereas lower noise in later iterations focuses the search around the most promising solutions found so far.
-
----
-
-## Additional Notes
-
-- **Reflections at Boundaries**  
-  Ensuring that samples do not remain outside a valid range often involves a "mirror" or "reflect" step.
-
-- **Log-Scale Sampling**  
-  If a parameter is specified as log-scaled in $[\text{low}, \text{high}]$, sampling can be done in $\log$-space, i.e., $\exp(\text{Uniform}(\log(\text{low}),\log(\text{high})))$.
-
-- **Temperature**  
-  When $\eta(t)$ becomes small, $T_{\text{cat}}(t)$ becomes large, so the softmax distribution becomes more "peaked" around the best categories discovered.
