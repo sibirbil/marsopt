@@ -1,12 +1,12 @@
 [project]
 name = "marsopt"
-version = "0.1"
+version = "0.1.0"  # Changed to semantic versioning format
 description = "Mixed Adaptive Random Search for Optimization"
 readme = "README.md"
 license = {text = "MIT License"}
 authors = [
-  { name = "Samet Copur", email = "sametcopur@yahoo.com" },
-  { name = "Ilker Birbil", email = "sibirbil@gmail.com" },
+    { name = "Samet Copur", email = "sametcopur@yahoo.com" },
+    { name = "Ilker Birbil", email = "sibirbil@gmail.com" },
 ]
 keywords = [
     "python",
@@ -20,22 +20,43 @@ keywords = [
     "data-science",
     "metaheuristics",
 ]
-
 classifiers = [
-  "Programming Language :: Python :: 3",
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent"
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.9"
-dependencies = ["numpy>=1.24.4"]
+requires-python = ">=3.8"
+dependencies = ["numpy"]
+
+
+[project.optional-dependencies]
+extra = ["scipy"]
+
+[tool.setuptools.dynamic]
+version = {attr = "marsopt.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["marsopt"]
 
 [project.urls]
 Documentation = "https://marsopt.readthedocs.io/en/latest/"
-Repository = "https://github.com/sibirbil/marspot"
+Repository = "https://github.com/sibirbil/marsopt"
 Tracker = "https://github.com/sibirbil/marspot/issues"
-
-[tool.cibuildwheel]
-build = "cp39-* cp310-* cp311-* cp312-* cp312-* cp313-*"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

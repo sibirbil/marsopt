@@ -2,7 +2,7 @@
 **Mixed Adaptive Random Search for Hyperparameter Optimization**
 
 [![PyPI version](https://img.shields.io/pypi/v/marsopt.svg)](https://pypi.org/project/marsopt/)
-[![License](https://img.shields.io/github/license/yourusername/marsopt.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/sibirbil/marsopt.svg)](LICENSE)
 [![Python Versions](https://img.shields.io/pypi/pyversions/marsopt.svg)](https://pypi.org/project/marsopt/)
 
 `marsopt` is a Python library designed to **simplify and accelerate hyperparameter optimization** (HPO) for mixed parameter spaces—supporting **continuous**, **integer**, and **categorical** parameters. Powered by **Mixed Adaptive Random Search**, `marsopt` dynamically balances exploration and exploitation through:
@@ -11,6 +11,12 @@
 - Flexible handling of **log-scale** and **categorical** parameters,
 - Minimization **or** maximization of any user-defined objective.
 
+---
+
+## Documentation & Algorithm Details
+
+- For full usage details, examples, and advanced features, check out the **[Official marsopt Documentation](https://marsopt.readthedocs.io/en/latest/)**.
+- For an in-depth explanation of the underlying **Mixed Adaptive Random Search** algorithm, visit the **[Algorithm Details](https://marsopt.readthedocs.io/en/latest/algorithm.html)** page.
 
 ---
 
@@ -31,14 +37,13 @@ Install `marsopt` from PyPI:
 pip install marsopt
 ```
 
-
 ---
 
 ## Getting Started
 
 ### Quick Example
 
-Below is a simplified example of how to use `marsopt` to tune a few common hyperparameters.
+Below is a simplified example of how to use `marsopt` to tune a few common hyperparameters:
 
 ```python
 import numpy as np
@@ -77,7 +82,7 @@ print("Best parameters:", best_trial["params"])
 
 1. **Import** and define an `objective_function` that receives a `Trial` object.  
 2. **Suggest parameters** (float, int, categorical).  
-3. **Return** a floating-point score or loss.  
+3. **Return** a floating-point score or loss. `marsopt` will record this value to guide future sampling.  
 4. **Initialize** a `Study` and call `study.optimize(...)`.  
 5. **Inspect** the best trial found.
 
@@ -197,7 +202,7 @@ Higher absolute correlation indicates a stronger relationship between a paramete
 6. **Repeat**  
    - Update the ranking of elite solutions, lower the noise, and continue until reaching the desired number of trials.
 
-This process yields a powerful yet flexible method of handling diverse parameter types within a single optimization framework.
+For a more detailed explanation, see the **[Algorithm Details](https://marsopt.readthedocs.io/en/latest/algorithm.html)** in the documentation.
 
 ---
 
@@ -217,4 +222,4 @@ You are free to use, modify, and distribute this code for both commercial and no
 
 ---
 
-**Happy optimizing with `marsopt`!** For questions or guidance, feel free to open an issue on our [GitHub repository](https://github.com/yourusername/marsopt).
+**Happy optimizing with `marsopt`!** For questions or guidance, feel free to open an issue on our [GitHub repository](https://github.com/sibirbil/marsopt) or consult the **[Documentation](https://marsopt.readthedocs.io/en/latest/)**.
