@@ -9,14 +9,6 @@
 
 `marsopt` provides an easy-to-use interface for **minimizing** or **maximizing** any user-defined objective (or loss) function, commonly found in **machine learning** or **deep learning** workflows. If you have ever tuned parameters like **learning rate**, **number of layers**, **dropout rates**, or **optimizer types**, you know how crucial and time-consuming this step can be. By leveraging adaptive sampling, `marsopt` can help you **explore** the parameter space broadly in the beginning and **exploit** promising areas in later iterations.
 
-In this guide, we will:
-
-1. Install and import `marsopt`.  
-2. Define a custom objective function that represents a real-world training scenario.  
-3. Set up and configure a `Study`.  
-4. Run the optimization.  
-5. Inspect results and interpret them for further improvements.  
-
 ---
 
 ## 2. Installation
@@ -65,7 +57,7 @@ A `Trial` represents a **single** evaluation of your objective function. Inside 
   - `suggest_int(param_name, low, high)`  
   - `suggest_categorical(param_name, categories)`
 
-You then **return** a **float** that indicates your objective value (or loss).  
+You then **return** a **float or integer** that indicates your objective value.  
 
 ### 3.3. Objective Function
 
