@@ -2,26 +2,10 @@ import logging
 import sys
 from typing import Optional, Dict
 
-# ANSI color codes for console output
-COLORS = {
-    "cyan": "\033[36m",
-    "yellow": "\033[33m",
-    "blue": "\033[34m",
-    "light_blue": "\033[38;5;117m",  # Açık mavi renk
-    "green": "\033[32m",
-    "light_orange": "\033[38;5;215m",  # Açık turuncu renk
-    "bold_white": "\033[1;37m",
-    "bold": "\033[1m",
-    "reset": "\033[0m",
-}
 
-
-class ColoredFormatter(logging.Formatter):
+class SimpleFormatter(logging.Formatter):
     """
-    Custom logging formatter that removes the log level and adds timestamps.
-
-    This formatter ensures that logs appear with only the timestamp and message,
-    without the log level (e.g., INFO, DEBUG).
+    Custom logging formatter that logs messages in a single-line format.
     """
 
     def format(self, record: logging.LogRecord) -> str:
@@ -38,9 +22,7 @@ class ColoredFormatter(logging.Formatter):
         str
             The formatted log message.
         """
-        # Tarihi kalın yapıyoruz
-        formatted_time = f"{COLORS['bold']}{self.formatTime(record, self.datefmt)}{COLORS['reset']}"
-        return f"{formatted_time} | {record.getMessage()}"
+        return f"[I {self.formatTime(record, self.datefmt)}, {record.msecs:.0f}] {record.getMessage()}"
 
 
 def setup_logger(name: str = "marsopt", log_file: Optional[str] = None) -> logging.Logger:
@@ -48,7 +30,6 @@ def setup_logger(name: str = "marsopt", log_file: Optional[str] = None) -> loggi
     Set up and configure a logger.
 
     The logger prints messages to the console and optionally writes them to a file.
-    It filters out INFO-level messages and applies color formatting.
 
     Parameters
     ----------
@@ -66,18 +47,18 @@ def setup_logger(name: str = "marsopt", log_file: Optional[str] = None) -> loggi
     logger.setLevel(logging.INFO)
     logger.handlers = []
 
-    # Console handler with colors
+    # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(
-        ColoredFormatter(fmt="%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        SimpleFormatter(fmt="%(asctime)s", datefmt="%Y-%m-%d %H:%M:%S")
     )
     logger.addHandler(console_handler)
 
-    # File handler if log_file is provided (without colors)
+    # File handler if log_file is provided
     if log_file:
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(
-            logging.Formatter(fmt="%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+            SimpleFormatter(fmt="%(asctime)s", datefmt="%Y-%m-%d %H:%M:%S")
         )
         logger.addHandler(file_handler)
 
@@ -87,9 +68,6 @@ def setup_logger(name: str = "marsopt", log_file: Optional[str] = None) -> loggi
 class OptimizationLogger:
     """
     Helper class for logging optimization progress.
-
-    This class provides structured logging for optimization trials, 
-    including parameters, objective function values, and execution time.
 
     Parameters
     ----------
@@ -112,10 +90,7 @@ class OptimizationLogger:
         best_value: float,
     ) -> None:
         """
-        Logs the results of an optimization trial in a structured and readable format.
-
-        This function logs key details of an optimization iteration, 
-        including hyperparameters, objective function values, and the best result so far.
+        Logs the results of an optimization trial in a single-line format.
 
         Parameters
         ----------
@@ -135,32 +110,14 @@ class OptimizationLogger:
         Returns
         -------
         None
-            Logs the information to the configured logger.
         """
-        # Daha okunaklı bir renk şeması
-        HEADER_COLOR = COLORS['light_orange'] + COLORS['bold']  # Açık turuncu ve kalın
-        PARAM_KEY_COLOR = COLORS['bold'] + COLORS['light_blue']  # Anahtarları kalın ve açık mavi yapalım
-        VALUE_COLOR = COLORS['yellow']
-        BEST_COLOR = COLORS['bold'] + COLORS['green']
-        RESET = COLORS['reset']
-        
-        # Format parameters with consistent styling - handle conditional formatting outside f-string
-        formatted_params = []
-        for k, v in params.items():
-            if isinstance(v, float):
-                formatted_value = f"{VALUE_COLOR}{v:.4f}{RESET}"
-            else:
-                formatted_value = f"{VALUE_COLOR}{v}{RESET}"
-            formatted_params.append(f"{PARAM_KEY_COLOR}{k}{RESET}: {formatted_value}")
-        
-        params_str = "\n    ".join(formatted_params)
+        # Format parameters in a single-line dictionary format
+        params_str = ", ".join(f"'{k}': {v:.6f}" if isinstance(v, float) else f"'{k}': {v}" for k, v in params.items())
 
-        # Construct the log message with better visual hierarchy
+        # Construct the log message in a single line
         log_message = (
-            f"{HEADER_COLOR}Trial {iteration}{RESET} | Elapsed Time: {VALUE_COLOR}{time:.2f}s{RESET}\n"
-            f"Objective: {VALUE_COLOR}{objective:.6f}{RESET}\n"
-            f"Parameters:\n    {params_str}\n"
-            f"{BEST_COLOR}Best Trial: {best_iteration}  Best Value: {best_value:.6f}{RESET}\n"
+            f"Trial {iteration} finished with value: {objective:.6f} and parameters: {{{params_str}}}. "
+            f"Best is trial {best_iteration} with value: {best_value:.6f}."
         )
 
         self.logger.info(log_message)
