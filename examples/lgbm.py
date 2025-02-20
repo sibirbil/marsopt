@@ -34,8 +34,8 @@ def objective(trial: Trial):
     return  mean_squared_error(y_valid, preds)
 
 # Create MarsOpt study
-study = Study(random_state=42, n_init_points=10)
-study.optimize(objective, n_trials=3)
+study = Study(random_state=42)
+study.optimize(objective, n_trials=100)
 
 # Print best trial
 best_trial = study.best_trial
