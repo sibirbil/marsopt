@@ -1,28 +1,37 @@
+Below is an expanded version of the `getting_started.md` file, presented in **English**, with additional details and references to **real-world hyperparameter optimization** scenarios.
+
+---
+
 # Getting Started
 
 ## 1. Introduction
 
-`marsopt` is a Python library designed for easy and efficient hyperparameter optimization using a Mixed Adaptive Random Search approach. It supports numerical (both integer and float, optionally in log scale) and categorical parameters. The optimization process can be targeted towards **minimization** or **maximization** of the user-defined objective function.
+`marsopt` is a Python library designed to simplify and accelerate **hyperparameter optimization** tasks using a Mixed Adaptive Random Search approach. It effectively handles diverse hyperparameter types, including:
+
+- **Numerical** (integer or float, optionally on a log scale),  
+- **Categorical** (e.g., optimizer types, feature encoders, etc.).
+
+`marsopt` provides an easy-to-use interface for **minimizing** or **maximizing** any user-defined objective (or loss) function, commonly found in **machine learning** or **deep learning** workflows. If you have ever tuned parameters like **learning rate**, **number of layers**, **dropout rates**, or **optimizer types**, you know how crucial and time-consuming this step can be. By leveraging adaptive sampling, `marsopt` can help you **explore** the parameter space broadly in the beginning and **exploit** promising areas in later iterations.
 
 In this guide, we will:
 
-1. Install and import `marsopt`.
-2. Define a custom objective function.
-3. Set up a `Study`.
-4. Run the optimization.
-5. Analyze the results.
+1. Install and import `marsopt`.  
+2. Define a custom objective function that represents a real-world training scenario.  
+3. Set up and configure a `Study`.  
+4. Run the optimization.  
+5. Inspect results and interpret them for further improvements.  
 
 ---
 
 ## 2. Installation
 
-You can install `marsopt` (and its dependencies) using `pip`:
+Install `marsopt` using `pip`:
 
 ```bash
 pip install marsopt
 ```
 
-If you plan to use features like parameter importance (which requires `scipy`), ensure you have it installed:
+If you plan to use the parameter importance features, you should also ensure `scipy` is installed:
 
 ```bash
 pip install scipy
@@ -34,35 +43,51 @@ pip install scipy
 
 ### 3.1. The **Study** Class
 
-- A **Study** represents an optimization experiment.
-- You initialize a **Study** by specifying key parameters such as:
-  - `direction`: "minimize" or "maximize".
-  - `n_init_points`: Number of purely random initial trials (defaults to `round(√n_trials)`, if not provided).
-  - `initial_noise` and `final_noise`: Control the amount of noise (i.e., how aggressively or conservatively new parameter values are sampled).
-  - `random_state`: For reproducibility.
-  - `verbose`: Whether to print logs during optimization.
+A `Study` object encapsulates your entire hyperparameter optimization experiment. Key configuration options include:
 
-You then call the `.optimize()` method on the **Study** to run a number of trials (`n_trials`).
+- **`direction`**:  
+  - `"minimize"` or `"maximize"`.  
+  - If you have a loss function (like cross-entropy), you might want to **minimize** it.  
+  - If you have a metric (like accuracy or F1 score), you might want to **maximize** it.
+
+- **`n_init_points`**:  
+  - The number of purely random initial trials (defaults to `round(√n_trials)` if not specified).  
+  - These initial random trials help the optimizer gather a broad sense of the search space.
+
+- **`initial_noise`** and **`final_noise`**:  
+  - Control how much variability (i.e., "noise") is introduced when suggesting new parameter values.  
+  - The noise typically decreases over time (cosine annealing), enabling exploration early on and fine-tuning later.
+
+- **`random_state`**:  
+  - Seed for reproducibility. Provide an integer so you can replicate results exactly.
+
+- **`verbose`**:  
+  - `True` prints logs after each trial; `False` runs silently.
+
+Once configured, you call the **`.optimize()`** method to run a specified number of trials (`n_trials`).
 
 ### 3.2. The **Trial** Class
 
-- A **Trial** encapsulates a single evaluation of your objective function. 
-- Within each **Trial**, you define hyperparameter suggestions via:
-  - `suggest_float()`: for continuous parameters (e.g., learning rate).
-  - `suggest_int()`: for integer-valued parameters (e.g., number of layers).
-  - `suggest_categorical()`: for discrete string-based parameters (e.g., optimizer types).
+A `Trial` represents a **single** evaluation of your objective function. Inside the `objective_function(trial)`:
+
+- You define how to **suggest** each hyperparameter:
+  - `suggest_float(param_name, low, high, log=False)`  
+  - `suggest_int(param_name, low, high)`  
+  - `suggest_categorical(param_name, categories)`
+
+You then **return** a **float** that indicates your objective value (or loss).  
 
 ### 3.3. Objective Function
 
-- You must provide a callable `objective_function(trial)` that:
-  1. Uses **suggest** methods to define parameters.
-  2. Returns a single scalar metric (float) representing the performance to be optimized (the "objective" value).
+- The objective function is the heart of your optimization workflow.  
+- It must receive a `Trial` object and use that object’s **suggest** methods to propose values.  
+- After configuring and running your model or simulation with those values, it **returns** a single floating-point metric (e.g., validation loss, or negative of a validation accuracy, etc.).
 
 ---
 
 ## 4. Minimal Working Example
 
-Below is a complete example showcasing how to use **marsopt** to optimize a synthetic machine learning model:
+Below is a simplified yet demonstrative example of how to use `marsopt` to optimize a set of **typical machine learning hyperparameters**—learning rate, number of layers, optimizer type, and dropout rate:
 
 ```python
 import numpy as np
@@ -70,14 +95,14 @@ from marsopt import Study, Trial
 
 def objective(trial: Trial) -> float:
     """
-    Example objective function that simulates a machine learning model's performance.
-    We'll optimize:
-    - learning_rate (float)
-    - num_layers (int)
-    - optimizer_type (categorical)
-    - dropout_rate (float)
+    Example objective function simulating a model's performance.
+    We're optimizing:
+      - learning_rate (float)
+      - num_layers (int)
+      - optimizer_type (categorical)
+      - dropout_rate (float)
     
-    The function creates a synthetic response surface with some noise.
+    This function returns a single float to be minimized.
     """
 
     # 1) Suggest hyperparameters
@@ -86,37 +111,28 @@ def objective(trial: Trial) -> float:
     optimizer = trial.suggest_categorical("optimizer", ["adam", "sgd", "rmsprop"])
     dropout_rate = trial.suggest_float("dropout_rate", 0.1, 0.5)
     
-    # 2) Simulate model performance
-    #    This is a synthetic function that "favors":
-    #    - learning_rate around 0.001
-    #    - higher number of layers (with diminishing returns)
-    #    - 'rmsprop' as an example "best" (synthetic)
-    #    - dropout around 0.3
-    
-    # Learning rate component (optimal around 0.001)
-    lr_score = -3 * (np.log10(learning_rate) + 3) ** 2
-    
-    # Number of layers component (diminishing returns)
-    layer_score = np.log1p(num_layers) * 20
-    
-    # Optimizer component (here we define some arbitrary preferences)
+    # 2) Simulate model performance (synthetic)
+    #    In a real case, you would train a model here (e.g., PyTorch or scikit-learn)
+    #    and compute a validation loss or metric.
+
+    # Below is a hypothetical "true" score function:
+    lr_score = -3 * (np.log10(learning_rate) + 3) ** 2  # best around 1e-3
+    layer_score = np.log1p(num_layers) * 20             # more layers is better, but diminishing returns
     optimizer_scores = {"adam": 10.0, "rmsprop": 50.0, "sgd": 10.0}
     opt_score = optimizer_scores[optimizer]
-    
-    # Dropout component (optimal around 0.3)
-    dropout_score = -10 * (dropout_rate - 0.3) ** 2
-    
-    # Combine scores and add some noise (higher is "better")
-    score = (lr_score + layer_score + opt_score + dropout_score + 10) / 4
-    noise = np.random.normal(0, 0.1)
-    
-    # If 'direction' is "minimize", we return the negative of the score
-    # so that higher 'score' leads to a lower 'objective'.
-    return -(score + noise)
+    dropout_score = -10 * (dropout_rate - 0.3) ** 2     # best around 0.3
+
+    # Combine them into a single score. We'll say "higher is better" for the moment,
+    # but since 'direction' is set to 'minimize', we return the negative of it.
+    raw_score = lr_score + layer_score + opt_score + dropout_score + 10
+    noise = np.random.normal(0, 0.1)  # add random noise
+
+    # Return negative (we want to minimize the objective)
+    return -(raw_score + noise)
 
 # 3) Create and run a Study
 study = Study(
-    direction="minimize",   # or "maximize"
+    direction="minimize",
     random_state=42,
     verbose=True,
 )
@@ -131,22 +147,10 @@ print("Best trial objective:", best["objective_value"])
 print("Best trial parameters:", best["params"])
 ```
 
-### Explanation
+### In a Real-World Scenario
 
-1. **Objective function**:
-   - We define `objective(trial)` with a few parameter suggestions.
-   - We compute a synthetic performance metric (`score`) and return it (inverted if we are minimizing).
-
-2. **Study**:
-   - We create a `Study` object with `direction="minimize"` (also accepts `"maximize"`).
-   - We specify `random_state=42` for reproducibility.
-   - `verbose=True` prints logs to track progress.
-
-3. **Running optimization**:
-   - We call `study.optimize(objective, n_trials)`, which runs 100 trials.
-
-4. **Best trial**:
-   - The `.best_trial` property gives a dictionary of the best trial’s iteration, objective value, execution time, and parameters.
+- Instead of the synthetic function, you might build and train a **neural network** (e.g., using PyTorch, TensorFlow, or another framework), measure your **validation loss** or **metric**, and return that value.  
+- If you want to **maximize accuracy**, you can simply return `-accuracy` when using `direction="minimize"`, or switch the study direction to `"maximize"` and return `accuracy` directly.
 
 ---
 
@@ -154,24 +158,26 @@ print("Best trial parameters:", best["params"])
 
 ### 5.1. Trial History
 
+After the optimization completes, you can inspect the details of each trial:
+
 ```python
-# Access the full list of trials conducted
 all_trials = study.trials
 for t in all_trials[:5]:  # print first 5
     print(f"Iteration: {t['iteration']}, Objective: {t['objective_value']}, "
           f"Params: {t['parameters']}")
 ```
 
-Each element in `study.trials` is a dictionary containing:
-- **iteration** (int)
-- **objective_value** (float)
-- **trial_time** (float) – the time spent in that trial
-- **parameters** (dict) – a dict of all parameters suggested in that trial
+Each trial dictionary contains:
+- **iteration**: The trial index (1-based or 0-based depending on implementation).  
+- **objective_value**: The final metric or loss returned by your `objective` function.  
+- **trial_time**: How long that trial took to run.  
+- **parameters**: A dictionary of all hyperparameters suggested for that trial.
 
 ### 5.2. Objective Values & Elapsed Times
 
+Sometimes you want arrays of all objective values to quickly visualize or analyze them:
+
 ```python
-# NumPy arrays with all objective values and elapsed times
 obj_values = study.objective_values
 times = study.elapsed_times
 
@@ -179,13 +185,11 @@ print("Objective values:", obj_values)
 print("Elapsed times:", times)
 ```
 
-These arrays are in order of trial index.
-
 ---
 
 ## 6. Parameter Importance
 
-`marsopt` includes a simple utility to measure **parameter importance** via Spearman correlation:
+`marsopt` can provide a quick measure of parameter importance via **Spearman correlation**:
 
 ```python
 importances = study.parameter_importance()
@@ -194,7 +198,8 @@ for param, importance in importances.items():
     print(f"{param}: {importance:.4f}")
 ```
 
-It calculates absolute Spearman correlation between each parameter and the objective values, giving a rough sense of which parameters most influence the objective. (Requires `scipy`.)
+- This calculates the absolute Spearman correlation coefficient between each parameter and the objective values.  
+- It can offer a **rough** idea of which hyperparameters most strongly affect model performance. (Requires `scipy` to be installed.)
 
 ---
 
@@ -202,58 +207,42 @@ It calculates absolute Spearman correlation between each parameter and the objec
 
 ### 7.1. Controlling Noise
 
-- **`initial_noise`** (float): The noise added to each parameter suggestion at the start of the search. 
-  - Defaults to `0.2`.
-- **`final_noise`** (float): The noise level as the search nears completion.
-  - Defaults to `1 / n_trials` if not set.
-- During the search, the noise transitions from `initial_noise` to `final_noise` following a cosine annealing schedule. This helps the search to explore widely at the beginning and refine towards the end.
+- **`initial_noise`** (float): The initial sampling noise. Default is `0.2`.  
+- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `1 / n_trials` if not set.  
+
+Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` down to `final_noise`, facilitating broad exploration early on and refinement later.
 
 ### 7.2. Initial Random Points
 
-- **`n_init_points`** (int): Number of random points before applying the adaptive strategy. 
-  - By default, `n_init_points = round(√n_trials)`.
+- **`n_init_points`** (int): Number of random points sampled before adaptive strategies kick in.  
+  - Defaults to `round(√n_trials)` if unspecified.
 
-### 7.3. Adding Trials Incrementally
+### 7.3. Adding More Trials Later
 
-You can run additional trials beyond your initial `n_trials` by calling `.optimize()` again with more trials. `marsopt` will pick up where it left off:
+If you decide 100 trials aren’t enough, you can resume with additional trials:
 
 ```python
-# Suppose we already ran 100 trials. Now we want 50 more:
-study.optimize(objective, 50)
+# Add 50 more trials
+study.optimize(objective, n_trials=50)
 ```
 
-Your `Study` object will seamlessly extend its arrays and maintain state to continue optimization.
+`marsopt` retains its internal state and continues from the previously explored space.
 
 ---
 
 ## 8. Common Errors and Troubleshooting
 
-1. **Parameter Validation**: 
-   - If you get a `TypeError` or `ValueError` when calling `suggest_float()`, `suggest_int()`, or `suggest_categorical()`, ensure:
-     - `low < high` for numerical parameters.
-     - `categories` has unique and valid entries for categorical parameters.
-     - `log=True` parameters must have `low > 0`.
+1. **Parameter Ranges**:  
+   - Ensure for `suggest_float()` or `suggest_int()`, the `low` argument is strictly less than `high`.  
+   - For `log=True`, make sure both `low` and `high` are > 0.
 
-2. **Objective Function Not Returning float**:
-   - Your `objective_function` **must** return a single `float`. Make sure your return type is correct.
+2. **Return Type**:  
+   - The `objective` function **must** return a single `float`. Returning `None` or an array will cause errors.
 
-3. **No Trials Conducted**:
-   - Accessing properties like `best_trial` or `parameter_importance()` before any trials have run will raise errors. Call `study.optimize()` first.
+3. **No Trials Conducted**:  
+   - Calling methods like `study.best_trial` before any trials are run will raise an exception. Make sure to call `study.optimize()` first.
 
----
-
-## 9. Conclusion
-
-`marsopt` offers a straightforward yet flexible interface for hyperparameter optimization, suitable for various tasks including Machine Learning model tuning. By combining random exploration and adaptive local search, it achieves a balance of exploration and exploitation, especially helpful in diverse search spaces.
-
-**Key Takeaways**:
-- Define an **objective function** that uses `Trial`'s suggest methods.
-- Instantiate a **Study** with desired parameters.
-- Call `.optimize()` to run a specified number of trials.
-- Retrieve **best_trial**, track all trials with **trials**, or leverage **parameter_importance()**.
-
-We hope this guide helps you quickly get started and effectively tune your models or processes with `marsopt`!
+4. **Categorical Values**:  
+   - `suggest_categorical()` requires a non-empty list of categories.  
 
 ---
-
-*For further details, bug reports, or feature requests, please visit the [GitHub repository](https://github.com/). If you encounter any issues or have suggestions for improvement, feel free to open an issue or submit a pull request.*
