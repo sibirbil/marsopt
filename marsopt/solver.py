@@ -659,11 +659,13 @@ class Study:
 
             self._current_trial = Trial(self, iteration)
             obj_value: float = objective_function(self._current_trial)
-            
+
             if not isinstance(obj_value, (int, float)):
-                raise TypeError("Currently, only numerical outputs (int or float) are supported, but the function "
-                                f"returned a value of type {type(obj_value)}. Please ensure that the function returns a "
-                                "numerical value.")
+                raise TypeError(
+                    "Currently, only numerical outputs (int or float) are supported, but the function "
+                    f"returned a value of type {type(obj_value)}. Please ensure that the function returns a "
+                    "numerical value."
+                )
 
             self._elapsed_times[iteration] = perf_counter() - start_time
             self._objective_values[iteration] = obj_value
@@ -675,7 +677,6 @@ class Study:
                 ):
                     best_value = obj_value
                     best_iteration = iteration
-
 
                     self._logger.log_trial(
                         iteration=iteration + 1,
