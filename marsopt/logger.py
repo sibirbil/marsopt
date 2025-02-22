@@ -132,12 +132,12 @@ class OptimizationLogger:
         None
         """
         # Format parameters in a single-line dictionary format
-        params_str = ", ".join(f"'{k}': {v:.6f}" if isinstance(v, float) else f"'{k}': {v}" for k, v in params.items())
+        params_str = ", ".join(f"'{k}': {v}" if isinstance(v, float) else f"'{k}': {v}" for k, v in params.items())
 
         # Construct the log message in a single line
         log_message = (
-            f"Trial {iteration} finished with value: {objective:.6f} and parameters: {{{params_str}}}. "
-            f"Best is trial {best_iteration} with value: {best_value:.6f}."
+            f"Trial {iteration} finished with value: {objective} and parameters: {{{params_str}}}. "
+            f"Best is trial {best_iteration} with value: {best_value}."
         )
 
         self.logger.info(log_message)
