@@ -22,7 +22,7 @@ This method conducts an iterative search over a parameter space that may contain
 Let the key variables be defined as:
 
 - $N$ : Total number of iterations (trials)
-- $t$ : Current iteration index, where $0 \le t < N$,  
+- $t$ : Current iteration index, where $1 \le t < N$,  
 - $p_t$ : Progress ratio, defined as $\frac{t}{N}$
 
 ---
@@ -233,7 +233,7 @@ Let:
 
 - $N$ be the total number of iterations (trials).  
 - $n_{\text{init}\_\text{points}}$ be the number of initial trials that are sampled purely at random (default $\text{max(10, round}(\sqrt{N}))$ if not specified).  
-- $t$ be the index of the current iteration, with $0 \le t < N$.  
+- $t$ be the index of the current iteration, with $1 \le t < N$.  
 - $p_t = \frac{t}{N}$ be the **progress ratio**.
 
 At **each iteration** $t$ (from 1 up to $N$):
