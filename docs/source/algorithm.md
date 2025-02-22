@@ -236,13 +236,13 @@ Let:
 - $t$ be the index of the current iteration, with $0 \le t < N$.  
 - $p_t = \frac{t}{N}$ be the **progress ratio**.
 
-At **each iteration** $t$ (from 0 up to $N-1$):
+At **each iteration** $t$ (from 1 up to $N$):
 
-**If $t < n_{\text{init}\_\text{points}}$:**  
+**If $t \le n_{\text{init}\_\text{points}}$:**  
 - **Randomly sample** all parameters (continuous, integer, and categorical) within their valid ranges.  
 - Skip steps 2, 3, and 4 below (since no elite-based adaptation is used yet).
 
-**Otherwise** ($t \ge n_{\text{init}\_\text{points}}$):  
+**Else**:  
 
 1. **Compute Progress**:  
 
