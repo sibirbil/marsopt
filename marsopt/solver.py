@@ -29,7 +29,7 @@ class Trial:
         """
         self.study = study
         self.trial_id = trial_id
-        self.params: Dict[str, Any] = {}
+        self.params: Dict[str, Parameter] = {}
         self._validated_params = set()
 
     def __repr__(self) -> str:

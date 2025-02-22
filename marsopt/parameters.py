@@ -107,7 +107,7 @@ class Parameter:
         """
         self.name: str = name
         self.type: type = None
-        self.values: NDArray = None
+        self.values: NDArray[np.float64] = None
         self.category_indexer = CategoryIndexer()
 
     def __repr__(self) -> str:
