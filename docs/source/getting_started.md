@@ -54,7 +54,7 @@ A `Trial` represents a **single** evaluation of your objective function. Inside 
 
 - You define how to **suggest** each hyperparameter:
   - `suggest_float(param_name, low, high, log=False)`  
-  - `suggest_int(param_name, low, high)`  
+  - `suggest_int(param_name, low, high, log=False)`  
   - `suggest_categorical(param_name, categories)`
 
 You then **return** a **float or integer** that indicates your objective value.  

@@ -597,8 +597,6 @@ class Study:
             if self.final_noise is None:
                 self.final_noise = 1.0 / total_trials
 
-
-
             # Correctly use np.hstack with tuples
             old_objective_values = self._objective_values
             old_elapsed_times = self._elapsed_times
@@ -636,7 +634,7 @@ class Study:
 
             if self.n_init_points is None:
                 self.n_init_points = round(np.sqrt(self.n_trials))
-                
+
         elite_scale: float = 2.0 * np.sqrt(total_trials)
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
 
@@ -691,7 +689,7 @@ class Study:
                     params=self._current_trial.params,
                     objective=obj_value,
                     best_value=best_value,
-                    best_iteration=best_iteration,
+                    best_iteration=best_iteration + 1,
                 )
 
         return
@@ -872,6 +870,11 @@ class Study:
             and values are their respective values (int, float, or categorical as a string).
 
         """
+        if self._objective_values is None:
+            raise ValueError(
+                "At least one iteration must be completed before accessing best trial."
+            )
+
         best_iteration = int(self._obj_arg_sort[0])
 
         return {
@@ -924,9 +927,12 @@ class Study:
             A dictionary of parameter values from the trial. Keys are parameter names,
             and values are their respective values (int, float, or categorical as a string).
         """
-        final_iteration = min(
-            int((self.progress * self.n_trials) + 1), len(self._objective_values)
-        )
+        if self._objective_values is None:
+            raise ValueError(
+                "At least one iteration must be completed before accessing trials."
+            )
+
+        final_iteration = self._obj_arg_sort.size + 1
         history = []
 
         for iteration in range(final_iteration):
@@ -967,7 +973,12 @@ class Study:
             A NumPy array containing the recorded objective function values for
             all trials, ordered by their trial index.
         """
-        return self._objective_values
+        if self._objective_values is None:
+            raise ValueError(
+                "At least one iteration must be completed before accessing objective values."
+            )
+        else:
+            return self._objective_values[: self._obj_arg_sort.size]
 
     @property
     def elapsed_times(self) -> NDArray[np.float64]:
@@ -983,4 +994,9 @@ class Study:
             A NumPy array containing the recorded execution times (in seconds)
             for each trial, ordered by their trial index.
         """
-        return self._elapsed_times
+        if self._elapsed_times is None:
+            raise ValueError(
+                "At least one iteration must be completed before accessing elapsed times."
+            )
+        else:
+            return self._elapsed_times[: self._obj_arg_sort.size]
