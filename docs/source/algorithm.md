@@ -256,7 +256,7 @@ At **each iteration** $t$ (from 1 up to $N$):
    n_{\text{elite}}(t) 
    =
    \max \Bigl(1,\; 
-   \text{round}(\alpha\sqrt{N}\cdot p_t(1 - p_t))\Bigr).
+   \text{round}(2\sqrt{N}\cdot p_t(1 - p_t))\Bigr).
    $$
 
 3. **Update Noise (Cosine Annealing)**:
