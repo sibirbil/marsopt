@@ -22,7 +22,7 @@ This method conducts an iterative search over a parameter space that may contain
 Let the key variables be defined as:
 
 - $N$ : Total number of iterations (trials)
-- $t$ : Current iteration index, where $1 \le t < N$,  
+- $t$ : Current iteration index, where $1 \le t \le N$,  
 - $p_t$ : Progress ratio, defined as $\frac{t}{N}$
 
 ---
@@ -233,7 +233,7 @@ Let:
 
 - $N$ be the total number of iterations (trials).  
 - $n_{\text{init}\_\text{points}}$ be the number of initial trials that are sampled purely at random (default $\text{max(10, round}(\sqrt{N}))$ if not specified).  
-- $t$ be the index of the current iteration, with $1 \le t < N$.  
+- $t$ be the index of the current iteration, with $1 \le t \le N$.  
 - $p_t = \frac{t}{N}$ be the **progress ratio**.
 
 At **each iteration** $t$ (from 1 up to $N$):
@@ -282,4 +282,4 @@ At **each iteration** $t$ (from 1 up to $N$):
 6. **Update Ranking**:  
    - Keep track of the $n_{\text{elite}}(t)$ for the next iteration.
 
-This process repeats until $t = N$. Early in the search ($t < n_{\text{init}\_\text{points}}$), the algorithm explores broadly by drawing random samples. Once $t \ge n_{\text{init}\_\text{points}}$, it transitions to the adaptive phase: higher noise in the beginning encourages wide exploration, whereas lower noise in later iterations focuses the search around the most promising solutions found so far.
+This process repeats until $t = N$. Early in the search ($t \le n_{\text{init}\_\text{points}}$), the algorithm explores broadly by drawing random samples. Once $t > n_{\text{init}\_\text{points}}$, it transitions to the adaptive phase: higher noise in the beginning encourages wide exploration, whereas lower noise in later iterations focuses the search around the most promising solutions found so far.
