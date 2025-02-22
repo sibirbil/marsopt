@@ -279,13 +279,13 @@ class Study:
         initial_noise : float, default = 0.2
             Initial noise level.
         direction : str, default = "minimize"
-            Direction of optimization, either **"minimize"** or **"maximize"**.
+            Direction of optimization, either "minimize" or "maximize".
         n_init_points : int, default = None
             Number of initial random points. If `None`, it is set as:
-            **round(sqrt(`n_trials`))**
+            round(sqrt(`n_trials`))
         final_noise : float, default = None
             Final noise level. If `None`, it is set as:
-            **1.0 / `n_trials`**
+            1.0 / `n_trials`
         random_state : int, default = None
             Seed for reproducibility.
         verbose : bool, default = True
