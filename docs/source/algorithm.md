@@ -217,15 +217,10 @@ $$
    Draw one category $j$ at random according to the probabilities ${\pi_1,\dots,\pi_k}$. The resulting **one-hot vector** is
 
    $$
-   \pi_j 
-   =
-   \frac{\exp(m_j/T_{\text{cat}}(t))}
-        {\sum_{r=1}^{k}\,\exp(m_r/T_{\text{cat}}(t))},
+   [\,0,\;\dots,\;1,\;\dots,\;0\,]
    \quad
-   j = 1,\dots,k.
+   (\text{with the }j\text{-th element set to 1}).
    $$
-
-Şimdi $m_j$ ve $m_r$ değerleri $T_{\text{cat}}(t)$'ye bölünüyor.
 
 #### Visualizing $T_{\text{cat}}(t)$
 A plot of $T_{\text{cat}}(t)$ against $t$ can show how the categorical temperature starts high at $t=0$, allowing broad exploration, then gradually decreases, focusing more on the best categories over time.
