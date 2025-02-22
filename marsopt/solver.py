@@ -649,14 +649,14 @@ class Study:
         # Start from the existing trials count
         for iteration in range(n_exist_trials, total_trials):
             start_time = perf_counter()
-            self.progress = iteration / self.n_trials
+            self._progress = iteration / self.n_trials
 
             if iteration >= self.n_init_points:
                 self._current_n_elites = max(
-                    1, round(elite_scale * self.progress * (1 - self.progress))
+                    1, round(elite_scale * self._progress * (1 - self._progress))
                 )
 
-                cos_anneal = (1 + np.cos(np.pi * self.progress)) * 0.5
+                cos_anneal = (1 + np.cos(np.pi * self._progress)) * 0.5
 
                 self._current_noise = (
                     self.final_noise
@@ -726,7 +726,7 @@ class Study:
 
         importances = {}
         completed_trials = min(
-            int((self.progress * self.n_trials) + 1), len(self._objective_values)
+            int((self._progress * self.n_trials) + 1), len(self._objective_values)
         )
 
         objective_values = self._objective_values[:completed_trials]
