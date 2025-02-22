@@ -198,29 +198,34 @@ I'll help split those equations to be on separate lines:
    $$
 
    $$
-   T_{\text{cat}}(t) = \frac{1}{\eta_{\text{final}} + (1-\eta_{\text{final}})\,\mathrm{cos\_anneal}(t)}
+   T_{\text{cat}}(t) = \eta_{\text{final}} + (1-\eta_{\text{final}})\,\mathrm{cos\_anneal}(t)
    $$
 
 2. **Softmax Conversion**  
    Interpret each $m_j$ as a "score" for category $j$. Then compute the softmax probability
-   
-   $$
-   \pi_j 
-   =
-   \frac{\exp(m_j\,T_{\text{cat}}(t))}
-        {\sum_{r=1}^{k}\,\exp(m_r\,T_{\text{cat}}(t))},
-   \quad
-   j = 1,\dots,k.
-   $$
+
+$$
+\pi_j 
+=
+\frac{\exp(m_j \div T_{\text{cat}}(t))}
+      {\sum_{r=1}^{k}\,\exp(m_r \div T_{\text{cat}}(t))},
+\quad
+j = 1,\dots,k.
+$$
 
 3. **Sample a Category**  
    Draw one category $j$ at random according to the probabilities ${\pi_1,\dots,\pi_k}$. The resulting **one-hot vector** is
 
    $$
-   [\,0,\;\dots,\;1,\;\dots,\;0\,]
+   \pi_j 
+   =
+   \frac{\exp(m_j/T_{\text{cat}}(t))}
+        {\sum_{r=1}^{k}\,\exp(m_r/T_{\text{cat}}(t))},
    \quad
-   (\text{with the }j\text{-th element set to 1}).
+   j = 1,\dots,k.
    $$
+
+Şimdi $m_j$ ve $m_r$ değerleri $T_{\text{cat}}(t)$'ye bölünüyor.
 
 #### Visualizing $T_{\text{cat}}(t)$
 A plot of $T_{\text{cat}}(t)$ against $t$ can show how the categorical temperature starts high at $t=0$, allowing broad exploration, then gradually decreases, focusing more on the best categories over time.

@@ -33,7 +33,7 @@ A `Study` object encapsulates your entire hyperparameter optimization experiment
   - If you have a metric (like accuracy or F1 score), you might want to **maximize** it.
 
 - **`n_init_points`**:  
-  - The number of purely random initial trials (defaults to `round(√n_trials)` if not specified).  
+  - The number of purely random initial trials (defaults to `max(10, round(√n_trials))` if not specified).  
   - These initial random trials help the optimizer gather a broad sense of the search space.
 
 - **`initial_noise`** and **`final_noise`**:  

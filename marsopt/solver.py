@@ -285,7 +285,7 @@ class Study:
             round(sqrt(`n_trials`))
         final_noise : float, default = None
             Final noise level. If `None`, it is set as:
-            1.0 / `n_trials`
+            max(10, 1.0 / `n_trials`)
         random_state : int, default = None
             Seed for reproducibility.
         verbose : bool, default = True
@@ -641,7 +641,7 @@ class Study:
             self._elapsed_times = np.empty(shape=(n_trials,), dtype=np.float64)
 
             if self.n_init_points is None:
-                self.n_init_points = round(np.sqrt(self.n_trials))
+                self.n_init_points = max(10, round(np.sqrt(self.n_trials)))
 
         elite_scale: float = 2.0 * np.sqrt(total_trials)
         direction_multipler = 1.0 if self.direction == "minimize" else -1.0
