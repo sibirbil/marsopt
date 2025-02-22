@@ -701,59 +701,7 @@ class Study:
                 )
 
         return
-
-    def parameter_importance(self) -> Dict[str, float]:
-        """
-        Calculates the importance of each parameter based on correlation with objective values.
-        Uses Spearman correlation for both numerical and categorical parameters.
-
-        Returns
-        -------
-        Dict[str, float]
-            Dictionary mapping parameter names to their importance scores (absolute correlation values).
-            Higher values indicate stronger correlation with the objective.
-        """
-        try:
-            from scipy.stats import spearmanr
-        except ImportError:
-            raise ImportError(
-                "ImportError: The 'scipy' library is not found. Please install",
-                "it using 'pip install scipy' to compute parameter importance.",
-            )
-
-        if self._objective_values is None or len(self._parameters) == 0:
-            raise ValueError("No trials have been conducted yet.")
-
-        importances = {}
-        completed_trials = min(
-            int((self._progress * self.n_trials) + 1), len(self._objective_values)
-        )
-
-        objective_values = self._objective_values[:completed_trials]
-
-        # Handle optimization direction
-        if self.direction == "maximize":
-            objective_values = -objective_values  # Convert to minimization problem
-
-        for param_name, param in self._parameters.items():
-            if param.type in (int, float):
-                # For numerical parameters, use the raw values
-                param_values = param.values[:completed_trials]
-            else:
-                # For categorical parameters, use the index of the selected category
-                param_values = np.argmax(param.values[:completed_trials], axis=1)
-
-            # Calculate Spearman correlation using scipy's implementation
-            correlation, _ = spearmanr(param_values, objective_values)
-
-            # Handle NaN values that might occur with constant parameters
-            if np.isnan(correlation):
-                correlation = 0.0
-
-            importances[param_name] = float(abs(correlation))
-
-        return dict(sorted(importances.items(), key=lambda x: x[1], reverse=True))
-
+    
     @staticmethod
     def _validate_init_params(
         n_init_points: Any,
