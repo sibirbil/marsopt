@@ -232,7 +232,7 @@ A plot of $T_{\text{cat}}(t)$ against $t$ can show how the categorical temperatu
 Let:
 
 - $N$ be the total number of iterations (trials).  
-- $n_{\text{init}\_\text{points}}$ be the number of initial trials that are sampled purely at random (commonly $\text{round}(\sqrt{N})$ if not specified).  
+- $n_{\text{init}\_\text{points}}$ be the number of initial trials that are sampled purely at random (default $\text{max(10, round}(\sqrt{N}))$ if not specified).  
 - $t$ be the index of the current iteration, with $0 \le t < N$.  
 - $p_t = \frac{t}{N}$ be the **progress ratio**.
 
