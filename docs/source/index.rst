@@ -12,5 +12,6 @@ marsopt documentation
 
    getting_started.md
    algorithm.md
+   performance.md
    api.rst
 
