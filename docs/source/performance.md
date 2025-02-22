@@ -14,7 +14,7 @@ For each problem in blackbox optimization, we conducted 30 runs with different r
 ![Value comparison results for 100 trials](_static/performance/heatmap_values_100_trials.png)
 ![Frequency-based comparison for 100 trials](_static/performance/heatmap_frequency_100_trials.png)
 
-The tabulated results show that MARS significantly outperformed other algorithms in terms of both value metrics and frequency-based Bayesian bar plots.
+The results show that MARS significantly outperformed other algorithms.
 
 #### 1000 Iterations
 ![Value comparison results for 1000 trials](_static/performance/heatmap_values_1000_trials.png)
