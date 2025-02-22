@@ -1,19 +1,18 @@
 import os
 import sys
-import types
-from typing import TypeVar, Generic
 import numpy as np
-from typing import TYPE_CHECKING
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath("../.."))
+
+from marsopt import __version__
 
 # Project information
 project = "marsopt"
 copyright = "2025, Samet Çopur"
 author = "Samet Çopur"
-version = "0.1"
-release = "0.1"
+version = __version__
+release = __version__
 
 # Extensions configuration
 extensions = [
