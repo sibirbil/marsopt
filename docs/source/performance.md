@@ -1,4 +1,4 @@
-# Optimization Algorithm Performance Analysis
+# Performance Analysis
 
 ## Blackbox Optimization Experiments
 
