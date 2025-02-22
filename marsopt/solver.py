@@ -469,27 +469,35 @@ class Study:
             category_idx = self._rng.choice(cat_indices)
 
         else:
-            sorted_trials = self._obj_arg_sort[: self._current_n_elites]
+            param_values = param.values[: self._current_trial.trial_id, cat_indices]
+            range_mask = (param_values == 1).any(axis=1)
 
-            # Get parameter values for the best trials
-            param_values = param.values[sorted_trials[:, np.newaxis], cat_indices]
+            if not np.any(range_mask):
+                category_idx = self._rng.choice(cat_indices)
 
-            noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
+            else:
+                sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
 
-            chosen_elites_with_noise = param_values.mean(axis=0) + noise
+                param_values = param.values[sorted_indices[:, np.newaxis], cat_indices]
 
-            for i in range(cat_size):
-                chosen_elites_with_noise[i] = self._reflect_at_boundaries(
-                    chosen_elites_with_noise[i]
+                noise = self._rng.normal(
+                    loc=0.0, scale=self._current_noise, size=cat_size
                 )
 
-            exps = np.exp(
-                (chosen_elites_with_noise - np.max(chosen_elites_with_noise))
-                * self._current_cat_temp
-            )
-            probs = exps / exps.sum()
+                chosen_elites_with_noise = param_values.mean(axis=0) + noise
 
-            category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
+                for i in range(cat_size):
+                    chosen_elites_with_noise[i] = self._reflect_at_boundaries(
+                        chosen_elites_with_noise[i]
+                    )
+
+                exps = np.exp(
+                    (chosen_elites_with_noise - np.max(chosen_elites_with_noise))
+                    * self._current_cat_temp
+                )
+                probs = exps / exps.sum()
+
+                category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
         result = np.zeros(len(param.category_indexer), dtype=np.float64)
         result[category_idx] = 1.0
