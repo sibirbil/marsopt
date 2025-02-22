@@ -649,7 +649,7 @@ class Study:
         # Start from the existing trials count
         for iteration in range(n_exist_trials, total_trials):
             start_time = perf_counter()
-            self._progress = iteration / self.n_trials
+            self._progress = (iteration + 1) / self.n_trials
 
             if iteration >= self.n_init_points:
                 self._current_n_elites = max(
