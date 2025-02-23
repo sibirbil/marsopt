@@ -469,35 +469,29 @@ class Study:
             category_idx = self._rng.choice(cat_indices)
 
         else:
-            param_values = param.values[: self._current_trial.trial_id, cat_indices]
-            range_mask = (param_values == 1).any(axis=1)
 
-            if not np.any(range_mask):
-                category_idx = self._rng.choice(cat_indices)
+            sorted_indices = self._obj_arg_sort[: self._current_n_elites]
 
-            else:
-                sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
+            param_values = param.values[sorted_indices[:, np.newaxis], cat_indices]
 
-                param_values = param.values[sorted_indices[:, np.newaxis], cat_indices]
+            noise = self._rng.normal(
+                loc=0.0, scale=self._current_noise, size=cat_size
+            )
 
-                noise = self._rng.normal(
-                    loc=0.0, scale=self._current_noise, size=cat_size
+            chosen_elites_with_noise = param_values.mean(axis=0) + noise
+
+            for i in range(cat_size):
+                chosen_elites_with_noise[i] = self._reflect_at_boundaries(
+                    chosen_elites_with_noise[i]
                 )
 
-                chosen_elites_with_noise = param_values.mean(axis=0) + noise
+            exps = np.exp(
+                (chosen_elites_with_noise - np.max(chosen_elites_with_noise))
+                * self._current_cat_temp
+            )
+            probs = exps / exps.sum()
 
-                for i in range(cat_size):
-                    chosen_elites_with_noise[i] = self._reflect_at_boundaries(
-                        chosen_elites_with_noise[i]
-                    )
-
-                exps = np.exp(
-                    (chosen_elites_with_noise - np.max(chosen_elites_with_noise))
-                    * self._current_cat_temp
-                )
-                probs = exps / exps.sum()
-
-                category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
+            category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
         result = np.zeros(len(param.category_indexer), dtype=np.float64)
         result[category_idx] = 1.0
@@ -934,7 +928,7 @@ class Study:
                 "At least one iteration must be completed before accessing objective values."
             )
         else:
-            return self._objective_values[: self._obj_arg_sort.size]
+            return self._objective_values[: self._obj_arg_sort.size + 1]
 
     @property
     def elapsed_times(self) -> NDArray[np.float64]:
@@ -955,4 +949,4 @@ class Study:
                 "At least one iteration must be completed before accessing elapsed times."
             )
         else:
-            return self._elapsed_times[: self._obj_arg_sort.size]
+            return self._elapsed_times[: self._obj_arg_sort.size + 1]
