@@ -4,20 +4,23 @@ import numpy as np
 import pandas as pd
 import os
 
-def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = None):
+def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = None, detailed: bool = False):
     """
     Visualize optimization results with subplots for different trial counts.
+    Shows mean with ±1 standard deviation bands.
     
     Args:
         results_df (pd.DataFrame): DataFrame containing optimization results
         save_path (str, optional): Path to save the plots. If None, plots will be displayed
+        detailed (bool, optional): If True, adds detailed final iterations view and adjusts y-axis
     """
-    # Set style
     plt.style.use('default')
     sns.set_style("whitegrid")
     colors = sns.color_palette('deep')
     
-    # Get unique categories and problems
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+    
     unique_categories = results_df['problem_category'].unique()
     
     for category in unique_categories:
@@ -29,23 +32,36 @@ def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = No
             unique_trials = sorted(problem_data['trials'].unique())
             n_trials = len(unique_trials)
             
-            # Create figure with subplots
-            fig = plt.figure(figsize=(15, 5 * n_trials))
-            gs = fig.add_gridspec(n_trials, 2, width_ratios=[2, 1])
+            # Create single figure for all trials of the same problem
+            if detailed:
+                fig = plt.figure(figsize=(15, 10 * n_trials))  # Height scales with number of trials
+                gs = fig.add_gridspec(n_trials * 3, 2, height_ratios=[2, 1, 1] * n_trials, width_ratios=[2, 1])
+            else:
+                fig = plt.figure(figsize=(15, 5 * n_trials))
+                gs = fig.add_gridspec(n_trials, 2, width_ratios=[2, 1])
             
             for idx, trial_count in enumerate(unique_trials):
                 trial_data = problem_data[problem_data['trials'] == trial_count]
                 unique_methods = trial_data['method'].unique()
                 
-                # Create plot area
-                ax = fig.add_subplot(gs[idx, 0])
-                # Create table area
-                table_ax = fig.add_subplot(gs[idx, 1])
+                if detailed:
+                    # Main plot at 3*idx position
+                    ax = fig.add_subplot(gs[3*idx:3*idx+1, 0])
+                    table_ax = fig.add_subplot(gs[3*idx:3*idx+1, 1])
+                    # Detail plot spans the next two rows
+                    detail_ax = fig.add_subplot(gs[3*idx+1:3*idx+3, :])
+                else:
+                    ax = fig.add_subplot(gs[idx, 0])
+                    table_ax = fig.add_subplot(gs[idx, 1])
+                
                 table_ax.axis('off')
                 
-                # Dictionary to store statistical summary
                 stats_data = []
                 best_mean = float('inf')
+                all_method_data = {}
+                
+                global_min = float('inf')
+                global_max = float('-inf')
                 
                 # Process each method
                 for method_idx, method in enumerate(unique_methods):
@@ -56,7 +72,7 @@ def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = No
                         final_values = []
                         
                         for history in method_data['history']:
-                            history_array = np.array(eval(history))  # Convert string to array
+                            history_array = np.array(eval(history))
                             if len(history_array) < trial_count:
                                 continue
                             cum_min = np.minimum.accumulate(history_array[:trial_count])
@@ -66,17 +82,40 @@ def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = No
                         if all_cum_mins:
                             all_cum_mins = np.vstack(all_cum_mins)
                             mean_cum_min = np.mean(all_cum_mins, axis=0)
-                            min_cum_min = np.min(all_cum_mins, axis=0)
-                            max_cum_min = np.max(all_cum_mins, axis=0)
+                            std_cum_min = np.std(all_cum_mins, axis=0)
                             
-                            # Plot
+                            global_min = min(global_min, np.min(mean_cum_min - std_cum_min))
+                            global_max = max(global_max, np.max(mean_cum_min + std_cum_min))
+                            
+                            all_method_data[method] = {
+                                'mean': mean_cum_min,
+                                'std': std_cum_min,
+                                'final_values': final_values
+                            }
+                            
                             iterations = np.arange(trial_count)
-                            ax.fill_between(iterations, min_cum_min, max_cum_min,
-                                          color=colors[method_idx], alpha=0.2)
-                            ax.plot(iterations, mean_cum_min, label=method.upper(),
-                                  color=colors[method_idx], linewidth=2.5)
+                            ax.fill_between(iterations, 
+                                          mean_cum_min - std_cum_min,
+                                          mean_cum_min + std_cum_min,
+                                          color=colors[method_idx], 
+                                          alpha=0.2)
+                            ax.plot(iterations, mean_cum_min, 
+                                  label=method.upper(),
+                                  color=colors[method_idx], 
+                                  linewidth=2.5)
                             
-                            # Store statistics
+                            if detailed:
+                                last_n = min(50, trial_count)
+                                detail_ax.fill_between(iterations[-last_n:], 
+                                                     mean_cum_min[-last_n:] - std_cum_min[-last_n:],
+                                                     mean_cum_min[-last_n:] + std_cum_min[-last_n:],
+                                                     color=colors[method_idx], 
+                                                     alpha=0.2)
+                                detail_ax.plot(iterations[-last_n:], mean_cum_min[-last_n:],
+                                             label=method.upper(),
+                                             color=colors[method_idx],
+                                             linewidth=2.5)
+                            
                             mean_val = np.mean(final_values)
                             stats_data.append({
                                 'Method': method.upper(),
@@ -92,14 +131,36 @@ def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = No
                         print(f"Error processing {method}: {str(e)}")
                         continue
                 
-                # Style plot
+                y_margin = (global_max - global_min) * 0.05
+                y_min = global_min - y_margin
+                y_max = global_max + y_margin
+                
+                ax.set_ylim(y_min, y_max)
+                
                 ax.grid(True, color='gray', alpha=0.15)
                 ax.set_title(f'Trials: {trial_count}', fontsize=14, pad=20)
                 ax.set_xlabel('Iteration', fontsize=12)
                 ax.set_ylabel('Best Found Value', fontsize=12)
                 ax.legend(title='Method', title_fontsize=12, fontsize=10)
                 
-                # Create performance table
+                if detailed:
+                    final_min = float('inf')
+                    final_max = float('-inf')
+                    last_n = min(50, trial_count)
+                    
+                    for method_info in all_method_data.values():
+                        final_min = min(final_min, np.min(method_info['mean'][-last_n:] - method_info['std'][-last_n:]))
+                        final_max = max(final_max, np.max(method_info['mean'][-last_n:] + method_info['std'][-last_n:]))
+                    
+                    detail_margin = (final_max - final_min) * 0.1
+                    detail_ax.set_ylim(final_min - detail_margin, final_max + detail_margin)
+                    
+                    detail_ax.grid(True, color='gray', alpha=0.15)
+                    detail_ax.set_title(f'Final Iterations Detail (Trials: {trial_count})', fontsize=14, pad=20)
+                    detail_ax.set_xlabel('Iteration', fontsize=12)
+                    detail_ax.set_ylabel('Best Found Value', fontsize=12)
+                    detail_ax.legend(title='Method', title_fontsize=12, fontsize=10)
+                
                 stats_data.sort(key=lambda x: x['_mean_val'])
                 table_data = []
                 cell_colors = []
@@ -120,7 +181,6 @@ def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = No
                 table.set_fontsize(9)
                 table.scale(1.2, 1.5)
             
-            # Set overall title
             fig.suptitle(f'{category}\n{problem}', fontsize=16, y=0.98)
             plt.tight_layout()
             
@@ -132,6 +192,6 @@ def visualize_optimization_results(results_df: pd.DataFrame, save_path: str = No
             else:
                 plt.show()
 
-# Example usage:
-# results_df = pd.read_csv("optimization_results.csv")
-# visualize_optimization_results(results_df, save_path=None)
+if __name__ == "__main__":
+    results_df = pd.read_csv("optimization_results2.csv")
+    visualize_optimization_results(results_df, save_path="optimization_plots", detailed=False)

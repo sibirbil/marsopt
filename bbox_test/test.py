@@ -3,7 +3,7 @@ import itertools
 import numpy as np
 import csv
 import optuna
-from marsopt import MARSOpt
+from marsopt import Study
 import os
 from bbox_test.bbox import *
 
@@ -54,7 +54,7 @@ def run_single_mars(args):
         problem, int_indices=test["int"] if test["int"] is not None else []
     )
     
-    study = MARSOpt(random_state=seed, n_init_points=10)
+    study = Study(random_state=seed, verbose=False)
     study.optimize(wrapped_problem, n_trials=max_iter)
     return study.objective_values.tolist()
 
@@ -98,8 +98,8 @@ def run_single_optuna(args):
 
 def run_optimization(tests, method, output_file, problem_category):
     optuna.logging.disable_default_handler()
-    n_seeds = 3
-    check_points = [50, 75]
+    n_seeds = 30
+    check_points = [50, 75, 100, 150, 250, 500, 1000]
 
     with open(output_file, mode='a', newline='') as file:
         writer = csv.writer(file)
@@ -151,7 +151,7 @@ def run_optimization(tests, method, output_file, problem_category):
                         ])
 
 if __name__ == "__main__":
-    output_file = "optimization_results.csv"
+    output_file = "optimization_results2.csv"
     
     # Create new file with header
     with open(output_file, 'w', newline='') as f:
