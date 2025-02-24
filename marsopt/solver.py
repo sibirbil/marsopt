@@ -628,7 +628,7 @@ class Study:
             best_iteration = None
 
             if self.final_noise is None:
-                self.final_noise = 1.0 / n_trials
+                self.final_noise = min(2.0 / n_trials, self.initial_noise)
 
             self.n_trials = n_trials
             self._objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
