@@ -658,7 +658,7 @@ class Study:
                 )
 
                 self._current_cat_temp = 1.0 / (
-                    self.final_noise + (1.0 - self.final_noise) * cos_anneal
+                    0.1 + (0.9) * cos_anneal
                 )
 
             self._obj_arg_sort = np.argsort(
