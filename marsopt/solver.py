@@ -841,7 +841,11 @@ class Study:
                     )
                 )
                 for param_name, param in self._parameters.items()
-                if not np.isnan(param.values[best_iteration])
+                if (
+                    param.type in (int, float)
+                    and not np.isnan(param.values[best_iteration])
+                )
+                or param.type not in (int, float)
             },
         }
 
@@ -893,15 +897,21 @@ class Study:
 
             # Store parameter values for this iteration
             for param_name, param in self._parameters.items():
+                # Skip parameters that weren't used in this trial
+                param_value = param.values[iteration]
+
                 if param.type == int:
-                    value = int(param.values[iteration])
+                    if not np.isnan(param_value):
+                        trial_dict["parameters"][param_name] = int(param_value)
                 elif param.type == float:
-                    value = float(param.values[iteration])
+                    if not np.isnan(param_value):
+                        trial_dict["parameters"][param_name] = float(param_value)
                 else:  # categorical parameters
-                    value = param.category_indexer.get_strings(
-                        np.argmax(param.values[iteration])
-                    )
-                trial_dict["parameters"][param_name] = value
+                    # For categorical parameters, check if any value is non-zero
+                    if np.any(param_value):
+                        trial_dict["parameters"][param_name] = (
+                            param.category_indexer.get_strings(np.argmax(param_value))
+                        )
 
             history.append(trial_dict)
 
