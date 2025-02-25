@@ -474,9 +474,7 @@ class Study:
 
             param_values = param.values[sorted_indices[:, np.newaxis], cat_indices]
 
-            noise = self._rng.normal(
-                loc=0.0, scale=self._current_noise, size=cat_size
-            )
+            noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
 
             chosen_elites_with_noise = param_values.mean(axis=0) + noise
 
@@ -658,9 +656,7 @@ class Study:
                     + (self.initial_noise - self.final_noise) * cos_anneal
                 )
 
-                self._current_cat_temp = 1.0 / (
-                    0.1 + (0.9) * cos_anneal
-                )
+                self._current_cat_temp = 1.0 / (0.1 + (0.9) * cos_anneal)
 
             self._obj_arg_sort = np.argsort(
                 direction_multipler * self._objective_values[:iteration]
@@ -696,7 +692,7 @@ class Study:
                 )
 
         return
-    
+
     @staticmethod
     def _validate_init_params(
         n_init_points: Any,
@@ -845,6 +841,7 @@ class Study:
                     )
                 )
                 for param_name, param in self._parameters.items()
+                if not np.isnan(param.values[best_iteration])
             },
         }
 
