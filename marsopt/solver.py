@@ -519,12 +519,13 @@ class Study:
         float
             Value reflected into the valid range.
         """
-        while x < low or x > high:
-            if x > high:
-                x = high - (x - high) / 2.0
-            elif x < low:
+        while True:
+            if x < low:
                 x = low + (low - x) / 2.0
-
+            elif x > high:
+                x = high - (x - high) / 2.0
+            else:
+                break
         return x
 
     def _sample_value(self, low: float, high: float, log: bool) -> float:
