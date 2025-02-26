@@ -414,12 +414,7 @@ class Study:
                     value = self._reflect_at_boundaries(base_value + noise, low, high)
 
         if param_type == int:
-            # probabilistic rounding
-            frac = value - np.floor(value)
-            if self._rng.random() < frac:
-                value = int(np.ceil(value))
-            else:
-                value = int(np.floor(value))
+            value = int(value + (self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
 
         param.values[self._current_trial.trial_id] = value
 
