@@ -2,12 +2,12 @@
 
 ## 1. Introduction
 
-`marsopt` is a Python library designed to simplify and accelerate **hyperparameter optimization** tasks using a Mixed Adaptive Random Search approach. It effectively handles diverse hyperparameter types, including:
+`marsopt` is a Python library designed to simplify and accelerate **hyperparameter optimization** tasks using a **Mixed Adaptive Random Search** approach. It effectively handles diverse hyperparameter types, including:
 
 - **Numerical** (integer or float, optionally on a log scale),  
 - **Categorical** (e.g., optimizer types, feature encoders, etc.).
 
-`marsopt` provides an easy-to-use interface for **minimizing** or **maximizing** any user-defined objective (or loss) function, commonly found in **machine learning** or **deep learning** workflows. If you have ever tuned parameters like **learning rate**, **number of layers**, **dropout rates**, or **optimizer types**, you know how crucial and time-consuming this step can be. By leveraging adaptive sampling, `marsopt` can help you **explore** the parameter space broadly in the beginning and **exploit** promising areas in later iterations.
+`marsopt` provides an easy-to-use interface for **minimizing** or **maximizing** any user-defined **black-box problems**, commonly found in **machine learning** or **deep learning** hyperparameter optimizing workflows. By leveraging adaptive sampling, `marsopt` can help you **explore** the parameter space broadly in the beginning and **exploit** promising areas in later iterations.
 
 ---
 
@@ -30,7 +30,7 @@ A `Study` object encapsulates your entire hyperparameter optimization experiment
 - **`direction`**:  
   - `"minimize"` or `"maximize"`.  
   - If you have a loss function (like cross-entropy), you might want to **minimize** it.  
-  - If you have a metric (like accuracy or F1 score), you might want to **maximize** it.
+
 
 - **`n_init_points`**:  
   - The number of purely random initial trials (defaults to `max(10, round(√n_trials))` if not specified).  
@@ -38,7 +38,7 @@ A `Study` object encapsulates your entire hyperparameter optimization experiment
 
 - **`initial_noise`** and **`final_noise`**:  
   - Control how much variability (i.e., "noise") is introduced when suggesting new parameter values.  
-  - The noise typically decreases over time (cosine annealing), enabling exploration early on and fine-tuning later.
+  - The noise decreases over time, enabling exploration early on and fine-tuning later.
 
 - **`random_state`**:  
   - Seed for reproducibility. Provide an integer so you can replicate results exactly.
@@ -61,9 +61,8 @@ You then **return** a **float or integer** that indicates your objective value.
 
 ### 3.3. Objective Function
 
-- The objective function is the heart of your optimization workflow.  
 - It must receive a `Trial` object and use that object’s **suggest** methods to propose values.  
-- After configuring and running your model or simulation with those values, it **returns** a single floating-point metric (e.g., validation loss, or negative of a validation accuracy, etc.).
+- After configuring and running your model or simulation with those values, it must **returns a single numeric value**.
 
 ---
 
@@ -87,7 +86,7 @@ def objective(trial: Trial) -> float:
     return score 
 
 # Run optimization
-study = Study(direction="minimize", random_state=42) # Minimize the  score
+study = Study(direction="minimize") # Minimize the  score
 study.optimize(objective, n_trials=50)
 ```
 ```
@@ -179,40 +178,21 @@ array([2.60959001e-04, 1.22499998e-04, 1.15458002e-04, ..., 1.66750000e-04])
 
 ---
 
-## 6. Parameter Importance
+## 6. Advanced Configuration
 
-`marsopt` can provide a quick measure of parameter importance via **Spearman correlation**:
-
-```python
-study.parameter_importance()
-```
-
-```python
-{'optimizer': 0.6924193652047251,
- 'num_layers': 0.655940963922529,
- 'learning_rate': 0.052292917166866744}
-```
-
-- This calculates the absolute Spearman correlation coefficient between each parameter and the objective values.  
-- It can offer a **rough** idea of which hyperparameters most strongly affect model performance. Requires `scipy` to be installed.
-
----
-
-## 7. Advanced Configuration
-
-### 7.1. Controlling Noise
+### 6.1. Controlling Noise
 
 - **`initial_noise`** (float): The initial sampling noise. Default is `0.2`.  
-- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `1 / n_trials` if not set.  
+- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `2 / n_trials` if not set.  
 
 Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` down to `final_noise`, facilitating broad exploration early on and refinement later.
 
-### 7.2. Initial Random Points
+### 6.2. Initial Random Points
 
 - **`n_init_points`** (int): Number of random points sampled before adaptive strategies kick in.  
-  - Defaults to `round(√n_trials)` if unspecified.
+  - Defaults to `max(10, round(√n_trials))` if unspecified.
 
-### 7.3. Adding More Trials Later
+### 6.3. Adding More Trials Later
 
 If you decide 100 trials aren’t enough, you can resume with additional trials:
 
