@@ -247,7 +247,7 @@ At **each trial** $t$ (from 1 up to $N$):
 1. **Compute Progress**:  
 
    $$
-   p_t = \frac{t}{N}.
+   p_t = \frac{t}{N}
    $$
 
 2. **Determine Elite Count**:
