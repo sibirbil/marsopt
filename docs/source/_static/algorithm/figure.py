@@ -43,7 +43,7 @@ def create_and_save_plot(x, y, title, ylabel, color, filename):
 
     # Styling
     ax.set_title(title, pad=20, fontsize=16, fontweight='bold')
-    ax.set_xlabel('Iteration', fontsize=12)
+    ax.set_xlabel('Trial', fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
 
     # Grid and limits
