@@ -53,7 +53,7 @@ If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number 
 
 ## 3. Noise Scheduling with Cosine Annealing
 
-Let $\eta_{\text{init}}$ be the **initial noise** (e.g., 0.2) and $\eta_{\text{final}} = \frac{1}{N}$ be the **final noise** (or another chosen small value). At trial $t$, define a **cosine annealing** factor:
+Let $\eta_{\text{init}}$ be the **initial noise** (e.g., 0.2) and $\eta_{\text{final}} = \frac{2}{N}$ be the **final noise** (or another chosen small value). At trial $t$, define a **cosine annealing** factor:
 
 $$
 \text{cos}\_\text{anneal}(t) 
@@ -71,8 +71,8 @@ $$
 \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr)\text{cos}\_\text{anneal}(t).
 $$
 
-- When $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)=1$ and $\eta(t)\approx \eta_{\text{init}}$.  
-- Near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t)\approx \eta_{\text{final}}$.
+- When $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)=1$ and $\eta(t) = \eta_{\text{init}}$.  
+- Near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t) =  \eta_{\text{final}}$.
 
 Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
 
