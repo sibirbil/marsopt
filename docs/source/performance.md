@@ -1,6 +1,22 @@
 # Performance Analysis
 
-## Blackbox Optimization Experiments
+
+## **1. Timing Analysis**
+
+Our approach demonstrates a significant performance advantage over **Optuna's TPE** in terms of optimization speed. To evaluate this, we conducted 10 independent trials using a simple objective function designed to minimize the sum of 10 suggested floating-point parameters. This setup ensures that the function evaluation overhead remains minimal, allowing us to focus purely on the optimization speed.
+
+Our method achieves up to **150× faster performance** compared to Optuna. The results are so drastic that we had to use a logarithmic scale on the **y-axis** in the visualization; otherwise, the difference would have been too extreme to display effectively.
+
+![Timing comparison results for 10 float parameters](_static/performance/optimization_time_n_params_10.png) 
+
+---
+
+Would you like me to refine any other sections for clarity and consistency?
+
+
+## 2. Blackbox Optimization Experiments
+
+We utilized [SigOpt evalset](https://github.com/sigopt/evalset/tree/main), which provides predefined optimization problems.  
 
 For each problem in blackbox optimization, we conducted 30 runs with different random seeds to compare the average performance of different algorithms. The comparison included:
 - CMA-ES
@@ -20,9 +36,9 @@ The results show that MARS significantly outperformed other algorithms.
 ![Value comparison results for 1000 trials](_static/performance/heatmap_values_1000_trials.png)
 ![Frequency-based comparison for 1000 trials](_static/performance/heatmap_frequency_1000_trials.png)
 
-CMA-ES took the lead, though its results were very close to MARS's performance.
+CMA-ES took the lead, though its results were  close to MARS's performance.
 
-## LightGBM Hyperparameter Optimization
+## 3. LightGBM Hyperparameter Optimization
 
 We compared two different objective functions for hyperparameter optimization using LightGBM on the California Housing dataset:
 
@@ -51,5 +67,7 @@ We compared two different objective functions for hyperparameter optimization us
 
 ![Complex objective results on California Housing](_static/performance/hyperparameter_california_housing_complex.png)
 
-### Performance
-The results show that both objective functions performed slightly better than the standard Optuna optimization, with the complex objective providing marginally better results due to its more comprehensive parameter space and flexibility in boosting type selection.
+
+```{note}
+Only a small subset of the experiments is shared on this page, for detailed plots, results and the test scripts please visit [drive.com](https://drive.com).
+```
