@@ -18,7 +18,7 @@ def calculate_adaptive_params(n_trials, initial_noise=0.2, final_noise=None):
         n_elites[iteration] = max(1, round(elite_scale * progress * (1 - progress)))
         cos_anneal = (1 + np.cos(np.pi * progress)) * 0.5
         noise_levels[iteration] = final_noise + (initial_noise - final_noise) * cos_anneal
-        cat_temps[iteration] = (final_noise + (1.0 - final_noise) * cos_anneal)
+        cat_temps[iteration] = (0.1 + 0.9 * cos_anneal)
 
     return n_elites, noise_levels, cat_temps
 
