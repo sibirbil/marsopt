@@ -5,7 +5,7 @@ import os
 # Function to calculate adaptive parameters
 def calculate_adaptive_params(n_trials, initial_noise=0.2, final_noise=None):
     if final_noise is None:
-        final_noise = 1.0 / n_trials
+        final_noise = 2.0 / n_trials
 
     n_elites = np.zeros(n_trials)
     noise_levels = np.zeros(n_trials)
