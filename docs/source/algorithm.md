@@ -256,7 +256,7 @@ At **each trial** $t$ (from 1 up to $N$):
    n_{\text{elite}}(t) 
    =
    \max \Bigl(1,\; 
-   \text{round}(2\sqrt{N}\cdot p_t(1 - p_t))\Bigr).
+   \text{round}(2\sqrt{N}\cdot p_t(1 - p_t))\Bigr)
    $$
 
 3. **Update Noise (Cosine Annealing)**:
@@ -268,7 +268,7 @@ At **each trial** $t$ (from 1 up to $N$):
    +
    (\eta_{\text{init}} - \eta_{\text{final}}) 
    \times
-   0.5(1 + \cos(\pi p_t)).
+   0.5(1 + \cos(\pi p_t))
    $$
 
 4. **Handle Parameters**:  
