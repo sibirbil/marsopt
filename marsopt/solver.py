@@ -235,7 +235,7 @@ class Trial:
         self.params[name] = value
         return value
 
-    def suggest_categorical(self, name: str, categories: List[Any]) -> Any:
+    def suggest_categorical(self, name: str, categories: List[str]) -> str:
         """
         Suggest a categorical parameter value.
 
@@ -243,13 +243,13 @@ class Trial:
         ----------
         name : str
             The name of the parameter.
-        categories : List[Any]
-            A list of valid categorical values.
+        categories : List[str]
+            A list of valid string categorical values.
 
         Returns
         -------
-        Any
-            The suggested categorical value.
+        str
+            The suggested categorical string value.
         """
         self._validate_categorical(name, categories)
         value = self.study._suggest_categorical(name, categories)

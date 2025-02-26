@@ -1,7 +1,7 @@
 # Performance Analysis
 
 
-## **1. Timing Analysis**
+## 1. Timing Analysis
 
 Our approach demonstrates a significant performance advantage over **Optuna's TPE** in terms of optimization speed. To evaluate this, we conducted 10 independent trials using a simple objective function designed to minimize the sum of 10 suggested floating-point parameters. This setup ensures that the function evaluation overhead remains minimal, allowing us to focus purely on the optimization speed.
 
