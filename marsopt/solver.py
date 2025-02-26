@@ -197,8 +197,8 @@ class Trial:
             The lower bound of the parameter range.
         high : float
             The upper bound of the parameter range.
-        log : bool, optional
-            Whether the parameter is log-scaled (default is False).
+        log : bool, optional, default = False
+            Whether the parameter is log-scaled.
 
         Returns
         -------
@@ -222,8 +222,8 @@ class Trial:
             The lower bound of the parameter range.
         high : int
             The upper bound of the parameter range.
-        log : bool, optional
-            Whether the parameter is log-scaled (default is False).
+        log : bool, optional, default = False
+            Whether the parameter is log-scaled.
 
         Returns
         -------
