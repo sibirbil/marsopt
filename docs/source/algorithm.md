@@ -41,11 +41,11 @@ $$
 
 where:
 
-- The factor $p_t(1 - p_t)$ creates a bell-shaped curve over $t\in[0,N]$, reaching its maximum around $t \approx \frac{N}{2}$.  
+- The factor $p_t(1 - p_t)$ creates a bell-shaped curve over $t\in[1,N]$, reaching its maximum around $t \approx \frac{N}{2}$.  
 - The use of $\max(1,\dots)$ ensures that at least one trial is always considered elite.
 
 ### Visualizing $n_{\text{elite}}(t)$
-If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number of elite trials starts near 0 or 1 at $t=0$, grows to a maximum in the middle iterations, and then decreases again near $t=N$.
+If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number of elite trials starts near 0 or 1 at $t=1$, grows to a maximum in the middle iterations, and then decreases again near $t=N$.
 
 ![Evolution of Elite Individuals Over Time](_static/algorithm/number_of_elites_100.png)
 
@@ -71,13 +71,13 @@ $$
 \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr)\text{cos}\_\text{anneal}(t).
 $$
 
-- When $t$ is close to 0, $p_t=0$, so $\cos(\pi p_t)=1$ and $\eta(t)\approx \eta_{\text{init}}$.  
+- When $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)=1$ and $\eta(t)\approx \eta_{\text{init}}$.  
 - Near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t)\approx \eta_{\text{final}}$.
 
 Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
 
 ### Visualizing $\eta(t)$
-A plot of $\eta(t)$ across iterations $t$ typically shows a smooth curve descending from $\eta_{\text{init}}$ at $t=0$ to $\eta_{\text{final}}$ at $t=N$.
+A plot of $\eta(t)$ across iterations $t$ typically shows a smooth curve descending from $\eta_{\text{init}}$ at $t=1$ to $\eta_{\text{final}}$ at $t=N$.
 
 ![Evolution of Noise Level Over Time](_static/algorithm/noise_level_100.png)
 
@@ -198,20 +198,20 @@ I'll help split those equations to be on separate lines:
    $$
 
    $$
-   T_{\text{cat}}(t) = \eta_{\text{final}} + (1-\eta_{\text{final}})\,\mathrm{cos\_anneal}(t)
+   T_{\text{cat}}(t) = 0.1 + 0.9 * \mathrm{cos\_anneal}(t)
    $$
 
 2. **Softmax Conversion**  
    Interpret each $m_j$ as a "score" for category $j$. Then compute the softmax probability
 
-$$
-\pi_j 
-=
-\frac{\exp(m_j \div T_{\text{cat}}(t))}
-      {\sum_{r=1}^{k}\,\exp(m_r \div T_{\text{cat}}(t))},
-\quad
-j = 1,\dots,k.
-$$
+   $$
+   \pi_j 
+   =
+   \frac{\exp(m_j / T_{\text{cat}}(t))}
+         {\sum_{r=1}^{k}\,\exp(m_r / T_{\text{cat}}(t))},
+   \quad
+   j = 1,\dots,k.
+   $$
 
 3. **Sample a Category**  
    Draw one category $j$ at random according to the probabilities ${\pi_1,\dots,\pi_k}$. The resulting **one-hot vector** is

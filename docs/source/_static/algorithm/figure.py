@@ -48,7 +48,7 @@ def create_and_save_plot(x, y, title, ylabel, color, filename):
 
     # Grid and limits
     ax.grid(True, linestyle='--', alpha=0.7)
-    ax.set_xlim(0, n_trials)
+    ax.set_xlim(1, n_trials)  # Changed from (0, n_trials) to (1, n_trials)
 
     ymin, ymax = ax.get_ylim()
     ax.set_ylim(ymin - (ymax - ymin) * 0.1, ymax + (ymax - ymin) * 0.1)
@@ -58,6 +58,7 @@ def create_and_save_plot(x, y, title, ylabel, color, filename):
     plt.close(fig)  # Close the figure to free memory
 
 # Creating and saving the plots with proper LaTeX notation in titles
-create_and_save_plot(range(n_trials), n_elites_100, r'$n_{\mathrm{elite}}(t)$', 'Number of Elites', 'blue', filenames[0])
-create_and_save_plot(range(n_trials), noise_100, r'$\eta(t)$', 'Noise Level', 'green', filenames[1])
-create_and_save_plot(range(n_trials), cat_temps_100, r'$T_{\mathrm{cat}}(t)$', 'Categorical Temperature', 'red', filenames[2])
+# Changed range(1, n_trials) to range(1, n_trials+1) to include 100
+create_and_save_plot(range(1, n_trials+1), n_elites_100, r'$n_{\mathrm{elite}}(t)$', 'Number of Elites', 'blue', filenames[0])
+create_and_save_plot(range(1, n_trials+1), noise_100, r'$\eta(t)$', 'Noise Level', 'green', filenames[1])
+create_and_save_plot(range(1, n_trials+1), cat_temps_100, r'$T_{\mathrm{cat}}(t)$', 'Categorical Temperature', 'red', filenames[2])

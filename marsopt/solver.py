@@ -656,7 +656,7 @@ class Study:
                     + (self.initial_noise - self.final_noise) * cos_anneal
                 )
 
-                self._current_cat_temp = 1.0 / (0.1 + (0.9) * cos_anneal)
+                self._current_cat_temp = 1.0 / (0.1 + 0.9 * cos_anneal)
 
             self._obj_arg_sort = np.argsort(
                 direction_multipler * self._objective_values[:iteration]
