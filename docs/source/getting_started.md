@@ -194,7 +194,7 @@ Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` d
 
 ### 6.3. Adding More Trials Later
 
-If you decide 100 trials aren’t enough, you can resume with additional trials:
+If you decide 50 trials aren’t enough, you can resume with additional trials:
 
 ```python
 study.optimize(objective, n_trials=50)
