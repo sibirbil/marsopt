@@ -9,10 +9,6 @@ Our method achieves up to **150× faster performance** compared to Optuna. The r
 
 ![Timing comparison results for 10 float parameters](_static/performance/optimization_time_n_params_10.png) 
 
----
-
-Would you like me to refine any other sections for clarity and consistency?
-
 
 ## 2. Blackbox Optimization Experiments
 
