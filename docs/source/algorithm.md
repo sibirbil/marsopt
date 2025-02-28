@@ -114,21 +114,45 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
    \end{cases}
    $$
 
-#### Integer Variables
+#### Stochastic Rounding of a Continuous Value to an Integer
 
-Let $v \in \mathbb{R}$ be our continuous value. We wish to convert it to an integer with appropriate stochastic rounding.
+We aim to convert a real-valued number $v \in \mathbb{R}$ into an integer using **stochastic rounding**. This method ensures that the rounding process introduces randomness in a controlled manner based on the fractional part of $v$, rather than always rounding up or down deterministically.
 
-Python's `int()` function truncates toward zero, not always downward. This means:
-- For positive numbers: `int(3.7)` gives `3` (floor function)
-- For negative numbers: `int(-3.7)` gives `-3` (ceiling function)
+We define a function to obtain the integer part of $v$:
 
+$$
+\text{int}(v) =
+\begin{cases}
+\lfloor v \rfloor, & \text{if } v \geq 0 \\
+\lceil v \rceil, & \text{if } v < 0
+\end{cases}
+$$
 
-$$\text{intValue} = \begin{cases}
-\text{int}(v) + 1 & \text{if } v > 0 \text{ and } u < f \\
-\text{int}(v) - 1 & \text{if } v < 0 \text{ and } u < f \\
-\text{int}(v) & \text{otherwise}
-\end{cases}$$
+Where:
+- $\lfloor v \rfloor$ (floor function) rounds $v$ **down** to the nearest integer if $v \geq 0$.
+- $\lceil v \rceil$ (ceiling function) rounds $v$ **up** to the nearest integer if $v < 0$.
 
+The fractional part of $v$, denoted as $f$, represents the absolute distance between $v$ and the nearest integer towards zero, is given by:
+
+$$
+f = |v - \text{int}(v)|
+$$
+
+To determine whether we should round $v$ **up or down**, we sample a random variable:
+
+$$
+u \sim \text{Uniform}(0,1)
+$$
+
+The final rounded integer, $x_{\text{new}}$, is determined as follows:
+
+$$
+x_{\text{new}} = \begin{cases}
+\text{int}(x_{\text{new}}) + 1 & \text{if } x_{\text{new}} > 0 \text{ and } u < f \\
+\text{int}(x_{\text{new}}) - 1 & \text{if } x_{\text{new}} < 0 \text{ and } u < f \\
+\text{int}(x_{\text{new}}) & \text{otherwise}
+\end{cases}
+$$
 
 ## 5. Categorical Variables: One-Hot and Softmax
 
