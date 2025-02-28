@@ -7,7 +7,7 @@ class CategoryIndexer:
     __slots__ = ["str_to_idx", "idx_to_str", "next_idx"]
 
     """
-    A helper class for managing categorical parameter indexing.
+    A helper class for managing categorical variable indexing.
 
     Attributes
     ----------
@@ -78,7 +78,7 @@ class CategoryIndexer:
         return len(self.str_to_idx)
 
 
-class Parameter:
+class Variable:
     __slots__ = ["name", "type", "values", "category_indexer"]
 
     def __init__(self, name: str) -> None:
@@ -88,32 +88,27 @@ class Parameter:
         self.category_indexer = CategoryIndexer()
 
     def set_values(
-        self, max_iter: int, param_type_or_categories: Union[int, float, List[str]]
+        self, max_iter: int, var_type_or_categories: Union[int, float, List[str]]
     ) -> None:
         """
-        Initializes or updates the storage for parameter values based on the parameter type.
+        Initializes or updates the storage for variable values based on the variable type.
 
         Parameters
         ----------
         max_iter : int
-            Maximum number of iterations the parameter will be used for.
-        param_type_or_categories : Union[type, List[str]]
+            Maximum number of iterations the variable will be used for.
+        var_type_or_categories : Union[type, List[str]]
             Either a type (int, float) or a list of categorical values.
-
-        Raises
-        ------
-        ValueError
-            If an unsupported parameter type is provided.
         """
         # Handle numeric types
-        if isinstance(param_type_or_categories, type):
+        if isinstance(var_type_or_categories, type):
             self.values = np.empty(shape=(max_iter,), dtype=np.float64)
-            self.type = param_type_or_categories
+            self.type = var_type_or_categories
             return
 
         # Handle categorical types
-        if isinstance(param_type_or_categories, list):
-            categories = param_type_or_categories
+        if isinstance(var_type_or_categories, list):
+            categories = var_type_or_categories
             if not categories:
                 raise ValueError("Categories list cannot be empty")
 
@@ -156,11 +151,11 @@ class Parameter:
             raise ValueError("Values array has not been initialized.")
 
         if self.values.ndim == 1:
-            # Extend 1D array (for numeric parameters)
+            # Extend 1D array (for numeric variables)
             extension = np.empty(additional_iter, dtype=self.values.dtype)
             self.values = np.concatenate((self.values, extension))
         else:
-            # Extend 2D array (for categorical parameters)
+            # Extend 2D array (for categorical variables)
             extension = np.zeros(
                 (additional_iter, self.values.shape[1]), dtype=self.values.dtype
             )
