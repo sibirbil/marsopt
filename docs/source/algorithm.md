@@ -116,14 +116,32 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
 
 #### Integer Variables
 
-To handle an integer variable in $\{\text{low},\ldots,\text{high}\}$, one can:
+Let $v \in \mathbb{R}$ be our continuous value. We wish to convert it to an integer value with appropriate stochastic rounding.
 
-1. Sample a **continuous** value as above, obtaining $v$.  
-2. Let $\lfloor v \rfloor$ be the floor of $v$, and let $f = v - \lfloor v \rfloor$ be its fractional part.  
-3. Draw $u$ from a uniform distribution $\text{U}(0,1)$.  
-4. If $u < f$, set the integer value to $\lceil v \rceil$. Otherwise, set it to $\lfloor v \rfloor$.
+Define:
+- $\lfloor v \rfloor$ as the floor function (greatest integer less than or equal to $v$)
+- $f = |v - \lfloor v \rfloor|$ as the absolute fractional part of $v$
+- $u \sim \text{Uniform}(0,1)$ as a random sample from the uniform distribution
 
-Thus, a value close to 10.7 is more likely to become 11 than 10, while a value close to 10.2 is more likely to become 10 than 11.
+The stochastic rounding procedure is defined as:
+
+$$\text{intValue} = \begin{cases}
+\lfloor v \rfloor + \text{sgn}(v) & \text{if } u < f \\
+\lfloor v \rfloor & \text{otherwise}
+\end{cases}$$
+
+Where $\text{sgn}(v)$ is the sign function:
+
+$$\text{sgn}(v) = \begin{cases}
+1 & \text{if } v > 0 \\
+-1 & \text{if } v < 0
+\end{cases}$$
+
+This is implemented in code as:
+
+
+$$\text{value} = \text{int}(v) + (u < |v - \text{int}(v)|) \cdot (\text{sgn}(v))$$
+
 
 ## 5. Categorical Variables: One-Hot and Softmax
 
