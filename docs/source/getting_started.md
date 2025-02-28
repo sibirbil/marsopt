@@ -1,9 +1,11 @@
 # Getting Started
 
 **Mixed Adaptive Random Search** (MARS) is a method for **optimizing** any user-defined **black-box problems**, commonly found in **machine learning** or **deep learning** hyperparameter tuning workflows. MARS explores the space of variables broadly in the beginning and exploits promising areas in later iterations. Mathematically, MARS can be used to solve
+
 $$
 \min\{f(x) : x \in \mathcal{X}\},
 $$
+
 where $f$ is a real-valued function denoting the **objective function** and $\mathcal{X}$ is the **variable space**. MARS effectively handles diverse variable types including:
 - **numerical** (integer or float, optionally on a log scale),  
 - **categorical** (e.g., optimizer types, feature encoders, and so on).
@@ -52,9 +54,9 @@ Once configured, you call the **`.optimize()`** method to run a specified number
 A `Trial` represents a **single** evaluation of your objective function. Inside the `objective_function(trial)`:
 
 - You define how to **suggest** each variable:
-  - `suggest_float(param_name, low, high, log=False)`  
-  - `suggest_int(param_name, low, high, log=False)`  
-  - `suggest_categorical(param_name, categories)`
+  - `suggest_float(name, low, high, log=False)`  
+  - `suggest_int(name, low, high, log=False)`  
+  - `suggest_categorical(name, categories)`
 
 You then **return** a **float or integer** that indicates your objective value.  
 

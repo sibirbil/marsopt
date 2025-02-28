@@ -34,7 +34,7 @@ Let the key variables be defined as:
 - $p_t$ : Progress ratio, defined as $\frac{t}{N}$
 
 
-## 2. Number of Elite Trials $n_{\text{elite}}$
+## 2. Number of Elite Trials ($n_{\text{elite}}$)
 
 At each trial $t$, the number of elite trials selected to guide the next sample can be defined by a function that depends on the progress ratio $p_t$:
 
@@ -53,7 +53,7 @@ If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number 
 
 ![Evolution of Elite Individuals Over Time](_static/algorithm/number_of_elites_100.png)
 
-## 3. Noise Scheduling with Cosine Annealing
+## 3. Noise Scheduling with Cosine Annealing ($\eta(t)$)
 
 Let $\eta_{\text{init}}$ be the **initial noise** (e.g., 0.2) and $\eta_{\text{final}} = \frac{2}{N}$ be the **final noise** (or another chosen small value). At trial $t$, define a **cosine annealing** factor
 
@@ -73,7 +73,7 @@ $$
 \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr)\text{cos}\_\text{anneal}(t).
 $$
 
-Note that when $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)\approx 1$ and $\eta(t) \approx \eta_{\text{init}}$, and near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t) =  \eta_{\text{final}}$. Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
+Note that when $t$ is  1, $p_t \approx 0$, so $\cos(\pi p_t)\approx 1$ and $\eta(t) \approx \eta_{\text{init}}$, and near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t) =  \eta_{\text{final}}$. Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
 
 ### Visualizing $\eta(t)$
 A plot of $\eta(t)$ across trials $t$ typically shows a smooth curve descending from $\eta_{\text{init}}$ at $t=1$ to $\eta_{\text{final}}$ at $t=N$.
@@ -116,31 +116,18 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
 
 #### Integer Variables
 
-Let $v \in \mathbb{R}$ be our continuous value. We wish to convert it to an integer value with appropriate stochastic rounding.
+Let $v \in \mathbb{R}$ be our continuous value. We wish to convert it to an integer with appropriate stochastic rounding.
 
-Define:
-- $\lfloor v \rfloor$ as the floor function (greatest integer less than or equal to $v$)
-- $f = |v - \lfloor v \rfloor|$ as the absolute fractional part of $v$
-- $u \sim \text{Uniform}(0,1)$ as a random sample from the uniform distribution
+Python's `int()` function truncates toward zero, not always downward. This means:
+- For positive numbers: `int(3.7)` gives `3` (floor function)
+- For negative numbers: `int(-3.7)` gives `-3` (ceiling function)
 
-The stochastic rounding procedure is defined as:
 
 $$\text{intValue} = \begin{cases}
-\lfloor v \rfloor + \text{sgn}(v) & \text{if } u < f \\
-\lfloor v \rfloor & \text{otherwise}
+\text{int}(v) + 1 & \text{if } v > 0 \text{ and } u < f \\
+\text{int}(v) - 1 & \text{if } v < 0 \text{ and } u < f \\
+\text{int}(v) & \text{otherwise}
 \end{cases}$$
-
-Where $\text{sgn}(v)$ is the sign function:
-
-$$\text{sgn}(v) = \begin{cases}
-1 & \text{if } v > 0 \\
--1 & \text{if } v < 0
-\end{cases}$$
-
-This is implemented in code as:
-
-
-$$\text{value} = \text{int}(v) + (u < |v - \text{int}(v)|) \cdot (\text{sgn}(v))$$
 
 
 ## 5. Categorical Variables: One-Hot and Softmax
