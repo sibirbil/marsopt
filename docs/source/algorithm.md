@@ -73,7 +73,7 @@ $$
 \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr)\text{cos}\_\text{anneal}(t).
 $$
 
-Note that when $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)=1$ and $\eta(t) = \eta_{\text{init}}$, and near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t) =  \eta_{\text{final}}$. Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
+Note that when $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)\approx 1$ and $\eta(t) \approx \eta_{\text{init}}$, and near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t) =  \eta_{\text{final}}$. Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
 
 ### Visualizing $\eta(t)$
 A plot of $\eta(t)$ across trials $t$ typically shows a smooth curve descending from $\eta_{\text{init}}$ at $t=1$ to $\eta_{\text{final}}$ at $t=N$.
