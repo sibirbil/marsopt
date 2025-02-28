@@ -19,7 +19,6 @@ MARS iteratively refines a population of “elite” solutions and generates new
 - **Easy Setup**: Simply define an objective function, specify a variable search space, and run `study.optimize()`.  
 - **Resume & Extend**: Continue a `Study` with more trials at any time without losing past information.  
 - **Rich Tracking**: Inspect all trial details (objective values, parameters, times, and so on) for deeper analysis.  
-- **Parameter Importance**: Quickly see which variables most correlate with objective outcomes (via Spearman correlation).
 
 ## Installation
 Install `marsopt` from PyPI:
