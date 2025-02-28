@@ -1,9 +1,11 @@
 # MARS - Overview
 
 **Mixed Adaptive Random Search** (**MARS**) algorithm can be used to solve
+
 $$
 \min\{f(x) : x \in \mathcal{X}\},
 $$
+
 where $f$ is a real-valued function denoting the objective function and $\mathcal{X}$ is the variable space. We refer to the iterates of the algorithm interchangeably as **trials**, **solutions**, or **points** - these all reside in $\mathcal{X}$. 
 
 ## 1. General Structure of MARS
@@ -43,22 +45,26 @@ n_{\text{elite}}(t)
 \text{round} \bigl(2 \sqrt{N}\cdot p_t\cdot(1 - p_t)\bigr),
 \Bigr)
 $$
+
 wheret he factor $p_t(1 - p_t)$ creates a bell-shaped curve over $t\in[1,N]$, reaching its maximum around $t \approx \frac{N}{2}$, and the use of $\max(1,\dots)$ ensures that at least one trial is always considered elite.
 
 ### Visualizing $n_{\text{elite}}(t)$
-If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number of elite trials starts near 0 or 1 at $t=1$, grows to a maximum in the middle trials, and then decreases again near $t=N$.
+If desired, a plot of $n_{\text{elite}}(t)$ against $t$ can show how the number of elite trials is 1 at $t=1$, grows to a maximum in the middle trials, and then decreases to 1 again near $t=N$.
 
 ![Evolution of Elite Individuals Over Time](_static/algorithm/number_of_elites_100.png)
 
 ## 3. Noise Scheduling with Cosine Annealing
 
 Let $\eta_{\text{init}}$ be the **initial noise** (e.g., 0.2) and $\eta_{\text{final}} = \frac{2}{N}$ be the **final noise** (or another chosen small value). At trial $t$, define a **cosine annealing** factor
+
 $$
 \text{cos}\_\text{anneal}(t) 
 = 
 0.5 \bigl(1 + \cos(\pi p_t)\bigr).
 $$
+
 Then, the noise level $\eta(t)$ can be updated as:
+
 $$
 \eta(t) 
 = 
@@ -66,6 +72,7 @@ $$
 +
 \bigl(\eta_{\text{init}} - \eta_{\text{final}}\bigr)\text{cos}\_\text{anneal}(t).
 $$
+
 Note that when $t$ is close to 1, $p_t \approx 0$, so $\cos(\pi p_t)=1$ and $\eta(t) = \eta_{\text{init}}$, and near $t = N$, $\cos(\pi p_t)=-1$, so $\eta(t) =  \eta_{\text{final}}$. Hence, the noise transitions gradually from a larger initial value down to a smaller final value.
 
 ### Visualizing $\eta(t)$
@@ -87,6 +94,7 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
 
 2. **Add Noise**  
    Draw a random value $\delta \sim \mathcal{N}(0,\eta(t))$:
+
    $$
    x_{\text{new}} =
    x_{\text{elite}} 
@@ -96,6 +104,7 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
 
 3. **Reflect at Boundaries**  
    If $x_{\text{new}}$ goes below $\text{low}$ or above $\text{high}$, it is reflected back into the valid range. For instance,
+
    $$
    \text{while } x_{\text{new}} < \text{low} \text{ or } x_{\text{new}} > \text{high}: 
    \quad
@@ -175,6 +184,7 @@ Having obtained the noise-perturbed vector $\mathbf{m}$, we convert these $m_j$ 
 
 1. **Temperature Schedule**  
    Define a **categorical temperature** $T_{\text{cat}}(t)$ that typically **increases** over trials (as $\eta(t)$ **decreases**). One example ties it to the same cosine-annealing schedule used for $\eta(t)$. For instance,
+   
    $$
    \mathrm{cos\_anneal}(t) = 0.5\,(1 + \cos(\pi p_t)),
    $$
@@ -184,6 +194,7 @@ Having obtained the noise-perturbed vector $\mathbf{m}$, we convert these $m_j$ 
 
 2. **Softmax Conversion**  
    Interpret each $m_j$ as a "score" for category $j$. Then, compute the softmax probability
+   
    $$
    \pi_j 
    =
