@@ -1,17 +1,16 @@
 # Getting Started
 
-## 1. Introduction
+**Mixed Adaptive Random Search** (MARS) is a method for **optimizing** any user-defined **black-box problems**, commonly found in **machine learning** or **deep learning** hyperparameter tuning workflows. MARS explores the space of variables broadly in the beginning and exploits promising areas in later iterations. Mathematically, MARS can be used to solve
+$$
+\min\{f(x) : x \in \mathcal{X}\},
+$$
+where $f$ is a real-valued function denoting the **objective function** and $\mathcal{X}$ is the **variable space**. MARS effectively handles diverse variable types including:
+- **numerical** (integer or float, optionally on a log scale),  
+- **categorical** (e.g., optimizer types, feature encoders, and so on).
 
-`marsopt` is a Python library designed to simplify and accelerate **hyperparameter optimization** tasks using a **Mixed Adaptive Random Search** approach. It effectively handles diverse hyperparameter types, including:
+To provide an easy-to-use interface for MARS, we have implemented a new Python library `marsopt` that we introduce in the subsequent part. Note that, we refer to the iterates of MARS interchangeably as **trials**, **solutions**, or **points** - these all reside in $\mathcal{X}$. 
 
-- **Numerical** (integer or float, optionally on a log scale),  
-- **Categorical** (e.g., optimizer types, feature encoders, etc.).
-
-`marsopt` provides an easy-to-use interface for **minimizing** or **maximizing** any user-defined **black-box problems**, commonly found in **machine learning** or **deep learning** hyperparameter optimizing workflows. By leveraging adaptive sampling, `marsopt` can help you **explore** the parameter space broadly in the beginning and **exploit** promising areas in later iterations.
-
----
-
-## 2. Installation
+## 1. Installation
 
 Install `marsopt` using `pip`:
 
@@ -19,13 +18,13 @@ Install `marsopt` using `pip`:
 pip install marsopt
 ```
 
----
+## 2. Basic Concepts
 
-## 3. Basic Concepts
+We reserve this section to introduce the main constructs in `marsopt`. 
 
-### 3.1. The **Study** Class
+### The **Study** Class
 
-A `Study` object encapsulates your entire hyperparameter optimization experiment. Key configuration options include:
+A `Study` object encapsulates your entire optimization experiment. Key configuration options include:
 
 - **`direction`**:  
   - `"minimize"` or `"maximize"`.  
@@ -37,7 +36,7 @@ A `Study` object encapsulates your entire hyperparameter optimization experiment
   - These initial random trials help the optimizer gather a broad sense of the search space.
 
 - **`initial_noise`** and **`final_noise`**:  
-  - Control how much variability (i.e., "noise") is introduced when suggesting new parameter values.  
+  - Control how much variability (i.e., "noise") is introduced when suggesting new variable values.  
   - The noise decreases over time, enabling exploration early on and fine-tuning later.
 
 - **`random_state`**:  
@@ -48,27 +47,25 @@ A `Study` object encapsulates your entire hyperparameter optimization experiment
 
 Once configured, you call the **`.optimize()`** method to run a specified number of trials (`n_trials`).
 
-### 3.2. The **Trial** Class
+### The **Trial** Class
 
 A `Trial` represents a **single** evaluation of your objective function. Inside the `objective_function(trial)`:
 
-- You define how to **suggest** each hyperparameter:
+- You define how to **suggest** each variable:
   - `suggest_float(param_name, low, high, log=False)`  
   - `suggest_int(param_name, low, high, log=False)`  
   - `suggest_categorical(param_name, categories)`
 
 You then **return** a **float or integer** that indicates your objective value.  
 
-### 3.3. Objective Function
+### Objective Function
 
 - It must receive a `Trial` object and use that object’s **suggest** methods to propose values.  
-- After configuring and running your model or simulation with those values, it must **returns a single numeric value**.
+- After configuring and running your model or simulation with those values, it must **return a single numeric value**.
 
----
+## 3. Minimal Working Example
 
-## 4. Minimal Working Example
-
-Below is a simplified yet demonstrative example of how to use `marsopt` to optimize a set of **typical machine learning hyperparameters**—learning rate, number of layers, optimizer type, and dropout rate:
+Below is a simplified yet demonstrative example of how to use `marsopt` to optimize a set of **typical machine learning hyperparameters** — learning rate, number of layers, optimizer type, and dropout rate:
 
 ```python
 from marsopt import Study, Trial
@@ -99,12 +96,11 @@ study.optimize(objective, n_trials=50)
 [I 2025-02-20 19:56:20, 48] Trial 50 finished with value: -37.847763 and parameters: {'learning_rate': 0.001313, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
 ```
 
+## 4. Accessing Detailed Results
 
----
+Below we detail how one can collect information about the optimization process conducted by `marsopt`.  
 
-## 5. Accessing Detailed Results
-
-### 5.1. Trial History
+### Trial History
 
 After the optimization completes, you can inspect the details of each trial:
 
@@ -140,10 +136,9 @@ Each trial dictionary contains:
 - **trial_time**: How long that trial took to run.  
 - **parameters**: A dictionary of all hyperparameters suggested for that trial.
 
-####  5.1.1 Best Trial
+Likewise, one can also inspect the **best trial**:
 
 ```python
-
 study.best_trial
 ```
 
@@ -156,9 +151,9 @@ study.best_trial
   'optimizer': 'rmsprop'}}
 ```
 
-### 5.2. Objective Values & Elapsed Times
+### Objective Values and Elapsed Times
 
-Sometimes you want arrays of all objective values to quickly visualize or analyze them:
+Sometimes you want arrays of all objective function values to quickly visualize or analyze them:
 
 ```python
 study.objective_values
@@ -176,23 +171,22 @@ study.elapsed_times
 array([2.60959001e-04, 1.22499998e-04, 1.15458002e-04, ..., 1.66750000e-04])
 ```
 
----
+## 5. Advanced Configuration
 
-## 6. Advanced Configuration
+This section gives a few other parameters that users can adjust.
 
-### 6.1. Controlling Noise
+### Controlling Noise
 
 - **`initial_noise`** (float): The initial sampling noise. Default is `0.2`.  
 - **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `2 / n_trials` if not set.  
 
 Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` down to `final_noise`, facilitating broad exploration early on and refinement later.
 
-### 6.2. Initial Random Points
+### Initial Random Points
 
-- **`n_init_points`** (int): Number of random points sampled before adaptive strategies kick in.  
-  - Defaults to `max(10, round(√n_trials))` if unspecified.
+- **`n_init_points`** (int): Number of random points sampled before adaptive strategies kick in.  Defaults to `max(10, round(√n_trials))` if unspecified.
 
-### 6.3. Adding More Trials Later
+### Adding More Trials Later
 
 If you decide 50 trials aren’t enough, you can resume with additional trials:
 
@@ -205,6 +199,4 @@ study.optimize(objective, n_trials=50)
 ...
 [I 2025-02-20 20:17:46, 722] Trial 100 finished with value: -37.908955 and parameters: {'learning_rate': 0.000909, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 93 with value: -37.917579.
 ```
-
-
 `marsopt` retains its internal state and continues from the previously explored space.
