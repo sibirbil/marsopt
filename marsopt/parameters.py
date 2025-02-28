@@ -5,7 +5,7 @@ from typing import List, Union, Dict
 
 class CategoryIndexer:
     __slots__ = ["str_to_idx", "idx_to_str", "next_idx"]
-    
+
     """
     A helper class for managing categorical parameter indexing.
 
@@ -79,65 +79,6 @@ class CategoryIndexer:
 
 
 class Parameter:
-    """
-    Represents a parameter in an optimization process.
-
-    Attributes
-    ----------
-    name : str
-        The name of the parameter.
-    type : type
-        The type of the parameter (int, float, or categorical).
-    values : NDArray
-        An array storing parameter values.
-    category_indexer : CategoryIndexer
-        Manages category indices for categorical parameters.
-    """
-
-    __slots__ = ["name", "type", "values", "category_indexer"]
-
-    def __init__(self, name: str) -> None:
-        """
-        Initializes a Parameter instance.
-
-        Parameters
-        ----------
-        name : str
-            The name of the parameter.
-        """
-        self.name: str = name
-        self.type: type = None
-        self.values: NDArray[np.float64] = None
-        self.category_indexer = CategoryIndexer()
-
-    def __repr__(self) -> str:
-        """
-        Returns a string representation of the Parameter instance.
-
-        Returns
-        -------
-        str
-            String representation including the name, type, and value preview.
-        """
-        values_info = ""
-        if self.values is not None:
-            if self.values.size > 0:
-                # Show first few values if they exist
-                preview = np.array2string(
-                    self.values.flatten()[:3], precision=2, separator=", "
-                )[:-1]
-                values_info = f", values_preview={preview}...]"
-            else:
-                values_info = ", values=empty"
-
-        return (
-            f"{self.__class__.__name__}("
-            f"name='{self.name}', "
-            f"type={self.type.__name__ if self.type else 'None'}"
-            f"{values_info})"
-        )
-
-class Parameter:
     __slots__ = ["name", "type", "values", "category_indexer"]
 
     def __init__(self, name: str) -> None:
@@ -188,7 +129,9 @@ class Parameter:
                 current_width = self.values.shape[1]
                 if required_width > current_width:
                     # Efficiently extend the array only if needed
-                    extension = np.zeros((max_iter, required_width - current_width), dtype=np.float64)
+                    extension = np.zeros(
+                        (max_iter, required_width - current_width), dtype=np.float64
+                    )
                     self.values = np.hstack((self.values, extension))
             return
 
@@ -218,5 +161,7 @@ class Parameter:
             self.values = np.concatenate((self.values, extension))
         else:
             # Extend 2D array (for categorical parameters)
-            extension = np.zeros((additional_iter, self.values.shape[1]), dtype=self.values.dtype)
+            extension = np.zeros(
+                (additional_iter, self.values.shape[1]), dtype=self.values.dtype
+            )
             self.values = np.vstack((self.values, extension))
