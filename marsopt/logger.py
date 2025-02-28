@@ -104,7 +104,7 @@ class OptimizationLogger:
     def log_trial(
         self,
         iteration: int,
-        params: Dict[str, float],
+        variables: Dict[str, float],
         objective: float,
         best_iteration: int,
         best_value: float,
@@ -116,8 +116,8 @@ class OptimizationLogger:
         ----------
         iteration : int
             The current trial number.
-        params : Dict[str, float]
-            The dictionary of hyperparameters used in the trial.
+        variables : Dict[str, float]
+            The dictionary of variables used in the trial.
         objective : float
             The objective function value obtained in the trial.
         time : float
@@ -131,12 +131,12 @@ class OptimizationLogger:
         -------
         None
         """
-        # Format parameters in a single-line dictionary format
-        params_str = ", ".join(f"'{k}': {v}" if isinstance(v, float) else f"'{k}': {v}" for k, v in params.items())
+        # Format variables in a single-line dictionary format
+        var_str = ", ".join(f"'{k}': {v}" if isinstance(v, float) else f"'{k}': {v}" for k, v in variables.items())
 
         # Construct the log message in a single line
         log_message = (
-            f"Trial {iteration} finished with value: {objective} and parameters: {{{params_str}}}. "
+            f"Trial {iteration} finished with value: {objective} and variables: {{{var_str}}}. "
             f"Best is trial {best_iteration} with value: {best_value}."
         )
 

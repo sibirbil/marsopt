@@ -3,14 +3,14 @@ import numpy as np
 from numpy.typing import NDArray
 from time import perf_counter
 
-from .parameters import Parameter
+from .variable import Variable
 from .logger import OptimizationLogger
 
 from functools import lru_cache
 
 
 class Trial:
-    __slots__ = ["study", "trial_id", "params", "_validated_params"]
+    __slots__ = ["study", "trial_id", "variables", "_validated_variables"]
 
     """
     Represents a single trial in the optimization process.
@@ -29,8 +29,8 @@ class Trial:
         """
         self.study = study
         self.trial_id = trial_id
-        self.params: Dict[str, Parameter] = {}
-        self._validated_params = set()
+        self.variables: Dict[str, Variable] = {}
+        self._validated_variables = set()
 
     def __repr__(self) -> str:
         """
@@ -41,7 +41,7 @@ class Trial:
         str
             A string representation of the Trial instance.
         """
-        return f"Trial(trial_id={self.trial_id}, params={self.params})"
+        return f"Trial(trial_id={self.trial_id}, variables={self.variables})"
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -49,35 +49,35 @@ class Trial:
         name: str, low: Any, high: Any, expected_type: type, log: bool
     ) -> None:
         """
-        Validate numerical parameters using cached results.
+        Validate numerical variables using cached results.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         low : Any
-            The lower bound of the parameter range.
+            The lower bound of the variable range.
         high : Any
-            The upper bound of the parameter range.
+            The upper bound of the variable range.
         expected_type : type
-            The expected type of the parameter (int or float).
+            The expected type of the variable (int or float).
         log : bool
-            Whether the parameter is log-scaled.
+            Whether the variable is log-scaled.
         """
         # Float için hem int hem float kabul edilir
         if expected_type is float:
             if not (isinstance(low, (int, float)) and isinstance(high, (int, float))):
                 raise TypeError(
-                    f"Parameter '{name}': 'low' and 'high' must be numeric, got {type(low)} and {type(high)}"
+                    f"Variable '{name}': 'low' and 'high' must be numeric, got {type(low)} and {type(high)}"
                 )
         # Int için sadece int kabul edilir
         elif expected_type is int:
             if not (isinstance(low, int) and isinstance(high, int)):
                 raise TypeError(
-                    f"Parameter '{name}': 'low' and 'high' must be integers, got {type(low)} and {type(high)}"
+                    f"Variable '{name}': 'low' and 'high' must be integers, got {type(low)} and {type(high)}"
                 )
         else:
-            raise TypeError(f"Parameter '{name}': Unsupported type {expected_type}")
+            raise TypeError(f"Variable '{name}': Unsupported type {expected_type}")
 
         # low ve high değerlerini aynı tipe çevir (float durumu için)
         low = expected_type(low)
@@ -85,40 +85,40 @@ class Trial:
 
         if low >= high:
             raise ValueError(
-                f"Parameter '{name}': 'low' must be less than 'high' (got {low} >= {high})"
+                f"Variable '{name}': 'low' must be less than 'high' (got {low} >= {high})"
             )
         if log and (low <= 0 or high <= 0):
             raise ValueError(
-                f"Parameter '{name}': 'low' and 'high' must be positive when 'log' is True (got {low}, {high})"
+                f"Variable '{name}': 'low' and 'high' must be positive when 'log' is True (got {low}, {high})"
             )
 
     def _validate_numerical(
         self, name: str, low: Any, high: Any, expected_type: type, log: bool
     ) -> None:
         """
-        Validate numerical parameters and cache the results.
+        Validate numerical variables and cache the results.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         low : Any
-            The lower bound of the parameter range.
+            The lower bound of the variable range.
         high : Any
-            The upper bound of the parameter range.
+            The upper bound of the variable range.
         expected_type : type
-            The expected type of the parameter (int or float).
+            The expected type of the variable (int or float).
         log : bool
-            Whether the parameter is log-scaled.
+            Whether the variable is log-scaled.
         """
         if not isinstance(name, str):
-            raise TypeError(f"Parameter name must be a string, got {type(name)}")
+            raise TypeError(f"Variable name must be a string, got {type(name)}")
 
         if name == "":
-            raise ValueError("Parameter name cannot be an empty string.")
+            raise ValueError("Variable name cannot be an empty string.")
 
         self._validate_numerical_cached(name, low, high, expected_type, log)
-        self._validated_params.add(name)
+        self._validated_variables.add(name)
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -126,79 +126,79 @@ class Trial:
         name: str, categories_tuple: Tuple[Any, ...]
     ) -> None:
         """
-        Validate categorical parameters using cached results.
+        Validate categorical variables using cached results.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         categories_tuple : Tuple[Any, ...]
             A tuple of valid categorical values.
         """
         if len(categories_tuple) < 1:
             raise ValueError(
-                f"Parameter '{name}': 'categories' must contain at least one element"
+                f"Variable '{name}': 'categories' must contain at least one element"
             )
 
         if len(set(categories_tuple)) != len(categories_tuple):
             raise ValueError(
-                f"Parameter '{name}': 'categories' contains duplicate values"
+                f"Variable '{name}': 'categories' contains duplicate values"
             )
 
         try:
             _ = categories_tuple[0]
         except (TypeError, IndexError):
             raise TypeError(
-                f"Parameter '{name}': 'categories' must be indexable, got {type(categories_tuple)} with non-indexable elements"
+                f"Variable '{name}': 'categories' must be indexable, got {type(categories_tuple)} with non-indexable elements"
             )
 
     def _validate_categorical(self, name: str, categories: List[Any]) -> None:
         """
-        Validate categorical parameters and cache the results.
+        Validate categorical variables and cache the results.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         categories : List[Any]
             A list of valid categorical values.
         """
         if not isinstance(name, str):
-            raise TypeError(f"Parameter name must be a string, got {type(name)}")
+            raise TypeError(f"Variable name must be a string, got {type(name)}")
 
         if name == "":
-            raise ValueError("Parameter name cannot be an empty string.")
+            raise ValueError("Variable name cannot be an empty string.")
 
         if not isinstance(categories, list):
             raise TypeError(
-                f"Parameter '{name}': 'categories' must be a list, got {type(categories)}"
+                f"Variable '{name}': 'categories' must be a list, got {type(categories)}"
             )
 
         if any(not isinstance(cat, str) for cat in categories):
             raise TypeError(
-                f"Parameter '{name}': all items in 'categories' must be strings."
+                f"Variable '{name}': all items in 'categories' must be strings."
             )
 
         categories_tuple = tuple(categories)
         self._validate_categorical_cached(name, categories_tuple)
-        self._validated_params.add(name)
+        self._validated_variables.add(name)
 
     def suggest_float(
         self, name: str, low: float, high: float, log: bool = False
     ) -> float:
         """
-        Suggest a floating-point parameter value.
+        Suggest a floating-point variable value.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         low : float
-            The lower bound of the parameter range.
+            The lower bound of the variable range.
         high : float
-            The upper bound of the parameter range.
+            The upper bound of the variable range.
         log : bool, optional, default = False
-            Whether the parameter is log-scaled.
+            Whether the variable is log-scaled.
 
         Returns
         -------
@@ -207,23 +207,23 @@ class Trial:
         """
         self._validate_numerical(name, low, high, float, log)
         value = self.study._suggest_numerical(name, low, high, float, log)
-        self.params[name] = value
+        self.variables[name] = value
         return value
 
     def suggest_int(self, name: str, low: int, high: int, log: bool = False) -> int:
         """
-        Suggest an integer parameter value.
+        Suggest an integer variable value.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         low : int
-            The lower bound of the parameter range.
+            The lower bound of the variable range.
         high : int
-            The upper bound of the parameter range.
+            The upper bound of the variable range.
         log : bool, optional, default = False
-            Whether the parameter is log-scaled.
+            Whether the variable is log-scaled.
 
         Returns
         -------
@@ -232,17 +232,17 @@ class Trial:
         """
         self._validate_numerical(name, low, high, int, log)
         value = self.study._suggest_numerical(name, low, high, int, log)
-        self.params[name] = value
+        self.variables[name] = value
         return value
 
     def suggest_categorical(self, name: str, categories: List[str]) -> str:
         """
-        Suggest a categorical parameter value.
+        Suggest a categorical variable value.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         categories : List[str]
             A list of valid string categorical values.
 
@@ -253,7 +253,7 @@ class Trial:
         """
         self._validate_categorical(name, categories)
         value = self.study._suggest_categorical(name, categories)
-        self.params[name] = value
+        self.variables[name] = value
         return value
 
 
@@ -311,7 +311,7 @@ class Study:
         self._objective_values: NDArray[np.float64] = None
         self._elapsed_times: NDArray[np.float64] = None
         self._current_trial: Optional[Trial] = None
-        self._parameters: Dict[str, Parameter] = {}
+        self._variables: Dict[str, Variable] = {}
 
         self._progress: float = None
         self._current_noise: float = None
@@ -334,22 +334,22 @@ class Study:
         name: str,
         low: Union[int, float],
         high: Union[int, float],
-        param_type: type,
+        var_type: type,
         log: bool,
     ) -> Union[float, int]:
         """
-        Suggests a numerical parameter value.
+        Suggests a numerical variable value.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         low : Union[int, float]
-            The lower bound for the parameter.
+            The lower bound for the variable.
         high : Union[int, float]
-            The upper bound for the parameter.
-        param_type : type
-            The type of parameter (int or float).
+            The upper bound for the variable.
+        var_type : type
+            The type of variable (int or float).
         log : bool
             Whether to sample in logarithmic scale.
 
@@ -358,37 +358,37 @@ class Study:
         Union[float, int]
             The suggested numerical value.
         """
-        param = self._parameters.get(name)
+        var = self._variables.get(name)
 
-        if param is None:
-            param = Parameter(
+        if var is None:
+            var = Variable(
                 name=name,
             )
-            param.set_values(
-                max_iter=self.n_trials, param_type_or_categories=param_type
+            var.set_values(
+                max_iter=self.n_trials, var_type_or_categories=var_type
             )
-            self._parameters[name] = param
+            self._variables[name] = var
 
         else:
-            if param.type != param_type:
+            if var.type != var_type:
                 raise TypeError(
-                    f"Parameter '{name}' has already been registered with type {param.type}, "
-                    f"but an attempt was made to register it as type {param_type}. Ensure consistency."
+                    f"Variable '{name}' has already been registered with type {var.type}, "
+                    f"but an attempt was made to register it as type {var_type}. Ensure consistency."
                 )
 
         if self._current_trial.trial_id < self.n_init_points:
             value = self._sample_value(low, high, log)
 
         else:
-            param_values = param.values[: self._current_trial.trial_id]
-            range_mask = (param_values >= low) & (param_values <= high)
+            var_values = var.values[: self._current_trial.trial_id]
+            range_mask = (var_values >= low) & (var_values <= high)
 
             if not np.any(range_mask):
                 value = self._sample_value(low, high, log)
 
             else:
                 sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
-                values_masked = param_values[sorted_indices]
+                values_masked = var_values[sorted_indices]
                 base_value = self._rng.choice(values_masked[: self._current_n_elites])
 
                 if log:
@@ -406,28 +406,28 @@ class Study:
 
                 else:
                     # Apply noise directly
-                    param_range = high - low
+                    var_range = high - low
                     noise = self._rng.normal(
-                        loc=0.0, scale=self._current_noise * param_range
+                        loc=0.0, scale=self._current_noise * var_range
                     )
 
                     value = self._reflect_at_boundaries(base_value + noise, low, high)
 
-        if param_type == int:
+        if var_type == int:
             value = int(value + (self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
 
-        param.values[self._current_trial.trial_id] = value
+        var.values[self._current_trial.trial_id] = value
 
         return value
 
     def _suggest_categorical(self, name: str, categories: List[str]) -> Any:
         """
-        Suggests a categorical parameter value.
+        Suggests a categorical variable value.
 
         Parameters
         ----------
         name : str
-            The name of the parameter.
+            The name of the variable.
         categories : List[Any]
             A list of possible categorical values.
 
@@ -436,28 +436,28 @@ class Study:
         Any
             The suggested categorical value.
         """
-        param = self._parameters.get(name)
+        var = self._variables.get(name)
         trial_id = self._current_trial.trial_id
 
-        if param is None:
-            param = Parameter(name=name)
-            param.set_values(
-                max_iter=self.n_trials, param_type_or_categories=categories
+        if var is None:
+            var = Variable(name=name)
+            var.set_values(
+                max_iter=self.n_trials, var_type_or_categories=categories
             )
-            self._parameters[name] = param
+            self._variables[name] = var
 
         else:
-            if param.type != type(categories):
+            if var.type != type(categories):
                 raise TypeError(
-                    f"Parameter '{name}' has already been registered with type {param.type}, "
+                    f"Variable '{name}' has already been registered with type {var.type}, "
                     f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
                 )
 
-            param.set_values(
-                max_iter=self.n_trials, param_type_or_categories=categories
+            var.set_values(
+                max_iter=self.n_trials, var_type_or_categories=categories
             )
 
-        cat_indices = param.category_indexer.get_indices(categories)
+        cat_indices = var.category_indexer.get_indices(categories)
         cat_size = cat_indices.size
 
         if trial_id < self.n_init_points:
@@ -467,11 +467,11 @@ class Study:
 
             sorted_indices = self._obj_arg_sort[: self._current_n_elites]
 
-            param_values = param.values[sorted_indices[:, np.newaxis], cat_indices]
+            var_values = var.values[sorted_indices[:, np.newaxis], cat_indices]
 
             noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
 
-            chosen_elites_with_noise = param_values.mean(axis=0) + noise
+            chosen_elites_with_noise = var_values.mean(axis=0) + noise
 
             for i in range(cat_size):
                 chosen_elites_with_noise[i] = self._reflect_at_boundaries(
@@ -486,12 +486,12 @@ class Study:
 
             category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
-        result = np.zeros(len(param.category_indexer), dtype=np.float64)
+        result = np.zeros(len(var.category_indexer), dtype=np.float64)
         result[category_idx] = 1.0
 
-        param.values[trial_id, :] = result
+        var.values[trial_id, :] = result
 
-        return param.category_indexer.get_strings(category_idx)
+        return var.category_indexer.get_strings(category_idx)
 
     @staticmethod
     def _reflect_at_boundaries(x: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -527,7 +527,7 @@ class Study:
 
         This function generates a random value between `low` and `high`. If `log` is True,
         the sampling is done in logarithmic space, ensuring a proper distribution
-        when dealing with exponentially scaled parameters.
+        when dealing with exponentially scaled variables.
 
         Parameters
         ----------
@@ -604,8 +604,8 @@ class Study:
             self._objective_values[:n_exist_trials] = old_objective_values
             self._elapsed_times[:n_exist_trials] = old_elapsed_times
 
-            for param in self._parameters.keys():
-                self._parameters[param].add_iter(n_trials)
+            for var in self._variables.keys():
+                self._variables[var].add_iter(n_trials)
 
         else:
             if self.verbose:
@@ -680,7 +680,7 @@ class Study:
 
                 self._logger.log_trial(
                     iteration=iteration + 1,
-                    params=self._current_trial.params,
+                    variables=self._current_trial.variables,
                     objective=obj_value,
                     best_value=best_value,
                     best_iteration=best_iteration + 1,
@@ -698,7 +698,7 @@ class Study:
         verbose: Any,
     ) -> None:
         """
-        Validates initialization parameters for Study.
+        Validates initialization variables for Study.
 
         Parameters
         ----------
@@ -714,13 +714,6 @@ class Study:
             Optimization direction ('minimize' or 'maximize')
         verbose : Any
             Verbosity flag
-
-        Raises
-        ------
-        TypeError
-            If parameters are of wrong type
-        ValueError
-            If parameters have invalid values
         """
         # n_init_points validation
         if n_init_points is not None:
@@ -784,7 +777,7 @@ class Study:
     def best_trial(self) -> Dict[str, Any]:
         """
         Get the best trial's details, including the iteration number,
-        objective value, execution time, and parameter values.
+        objective value, execution time, and variable values.
 
         The best trial is determined based on the optimization direction
         ('minimize' or 'maximize').
@@ -806,9 +799,9 @@ class Study:
 
             The execution time of the best trial in seconds.
 
-            - **parameters** (:obj:`Dict[str, Union[int, float, str]]`)
+            - **variable** (:obj:`Dict[str, Union[int, float, str]]`)
 
-            A dictionary of parameter values from the best trial. Keys are parameter names,
+            A dictionary of variable values from the best trial. Keys are variable names,
             and values are their respective values (int, float, or categorical as a string).
 
         """
@@ -823,24 +816,24 @@ class Study:
             "iteration": best_iteration + 1,
             "objective_value": float(self._objective_values[best_iteration]),
             "trial_time": float(self._elapsed_times[best_iteration]),
-            "parameters": {
-                param_name: (
-                    int(param.values[best_iteration])
-                    if param.type == int
+            "variables": {
+                var_name: (
+                    int(var.values[best_iteration])
+                    if var.type == int
                     else (
-                        float(param.values[best_iteration])
-                        if param.type == float
-                        else param.category_indexer.get_strings(
-                            np.argmax(param.values[best_iteration])
+                        float(var.values[best_iteration])
+                        if var.type == float
+                        else var.category_indexer.get_strings(
+                            np.argmax(var.values[best_iteration])
                         )
                     )
                 )
-                for param_name, param in self._parameters.items()
+                for var_name, var in self._variables.items()
                 if (
-                    param.type in (int, float)
-                    and not np.isnan(param.values[best_iteration])
+                    var.type in (int, float)
+                    and not np.isnan(var.values[best_iteration])
                 )
-                or param.type not in (int, float)
+                or var.type not in (int, float)
             },
         }
 
@@ -850,7 +843,7 @@ class Study:
         Get the complete history of all trials in the optimization process.
 
         Each trial includes its iteration number, objective function value, execution time,
-        and parameter values.
+        and variable values.
 
         Returns
         -------
@@ -869,9 +862,9 @@ class Study:
 
             The execution time of the trial in seconds.
 
-            - **parameters** (:obj:`Dict[str, Union[int, float, str]]`)
+            - **variables** (:obj:`Dict[str, Union[int, float, str]]`)
 
-            A dictionary of parameter values from the trial. Keys are parameter names,
+            A dictionary of variable values from the trial. Keys are variable names,
             and values are their respective values (int, float, or categorical as a string).
         """
         if self._objective_values is None:
@@ -887,25 +880,25 @@ class Study:
                 "iteration": iteration + 1,
                 "objective_value": float(self._objective_values[iteration]),
                 "trial_time": float(self._elapsed_times[iteration]),
-                "parameters": {},
+                "variables": {},
             }
 
-            # Store parameter values for this iteration
-            for param_name, param in self._parameters.items():
-                # Skip parameters that weren't used in this trial
-                param_value = param.values[iteration]
+            # Store variable values for this iteration
+            for var_name, var in self._variables.items():
+                # Skip variables that weren't used in this trial
+                var_value = var.values[iteration]
 
-                if param.type == int:
-                    if not np.isnan(param_value):
-                        trial_dict["parameters"][param_name] = int(param_value)
-                elif param.type == float:
-                    if not np.isnan(param_value):
-                        trial_dict["parameters"][param_name] = float(param_value)
-                else:  # categorical parameters
-                    # For categorical parameters, check if any value is non-zero
-                    if np.any(param_value):
-                        trial_dict["parameters"][param_name] = (
-                            param.category_indexer.get_strings(np.argmax(param_value))
+                if var.type == int:
+                    if not np.isnan(var_value):
+                        trial_dict["variables"][var_name] = int(var_value)
+                elif var.type == float:
+                    if not np.isnan(var_value):
+                        trial_dict["variables"][var_name] = float(var_value)
+                else:  # categorical variables
+                    # For categorical variables, check if any value is non-zero
+                    if np.any(var_value):
+                        trial_dict["variables"][var_name] = (
+                            var.category_indexer.get_strings(np.argmax(var_value))
                         )
 
             history.append(trial_dict)

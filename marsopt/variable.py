@@ -5,9 +5,9 @@ from typing import List, Union, Dict
 
 class CategoryIndexer:
     __slots__ = ["str_to_idx", "idx_to_str", "next_idx"]
-    
+
     """
-    A helper class for managing categorical parameter indexing.
+    A helper class for managing categorical variable indexing.
 
     Attributes
     ----------
@@ -78,66 +78,7 @@ class CategoryIndexer:
         return len(self.str_to_idx)
 
 
-class Parameter:
-    """
-    Represents a parameter in an optimization process.
-
-    Attributes
-    ----------
-    name : str
-        The name of the parameter.
-    type : type
-        The type of the parameter (int, float, or categorical).
-    values : NDArray
-        An array storing parameter values.
-    category_indexer : CategoryIndexer
-        Manages category indices for categorical parameters.
-    """
-
-    __slots__ = ["name", "type", "values", "category_indexer"]
-
-    def __init__(self, name: str) -> None:
-        """
-        Initializes a Parameter instance.
-
-        Parameters
-        ----------
-        name : str
-            The name of the parameter.
-        """
-        self.name: str = name
-        self.type: type = None
-        self.values: NDArray[np.float64] = None
-        self.category_indexer = CategoryIndexer()
-
-    def __repr__(self) -> str:
-        """
-        Returns a string representation of the Parameter instance.
-
-        Returns
-        -------
-        str
-            String representation including the name, type, and value preview.
-        """
-        values_info = ""
-        if self.values is not None:
-            if self.values.size > 0:
-                # Show first few values if they exist
-                preview = np.array2string(
-                    self.values.flatten()[:3], precision=2, separator=", "
-                )[:-1]
-                values_info = f", values_preview={preview}...]"
-            else:
-                values_info = ", values=empty"
-
-        return (
-            f"{self.__class__.__name__}("
-            f"name='{self.name}', "
-            f"type={self.type.__name__ if self.type else 'None'}"
-            f"{values_info})"
-        )
-
-class Parameter:
+class Variable:
     __slots__ = ["name", "type", "values", "category_indexer"]
 
     def __init__(self, name: str) -> None:
@@ -147,32 +88,27 @@ class Parameter:
         self.category_indexer = CategoryIndexer()
 
     def set_values(
-        self, max_iter: int, param_type_or_categories: Union[int, float, List[str]]
+        self, max_iter: int, var_type_or_categories: Union[int, float, List[str]]
     ) -> None:
         """
-        Initializes or updates the storage for parameter values based on the parameter type.
+        Initializes or updates the storage for variable values based on the variable type.
 
         Parameters
         ----------
         max_iter : int
-            Maximum number of iterations the parameter will be used for.
-        param_type_or_categories : Union[type, List[str]]
+            Maximum number of iterations the variable will be used for.
+        var_type_or_categories : Union[type, List[str]]
             Either a type (int, float) or a list of categorical values.
-
-        Raises
-        ------
-        ValueError
-            If an unsupported parameter type is provided.
         """
         # Handle numeric types
-        if isinstance(param_type_or_categories, type):
+        if isinstance(var_type_or_categories, type):
             self.values = np.empty(shape=(max_iter,), dtype=np.float64)
-            self.type = param_type_or_categories
+            self.type = var_type_or_categories
             return
 
         # Handle categorical types
-        if isinstance(param_type_or_categories, list):
-            categories = param_type_or_categories
+        if isinstance(var_type_or_categories, list):
+            categories = var_type_or_categories
             if not categories:
                 raise ValueError("Categories list cannot be empty")
 
@@ -188,7 +124,9 @@ class Parameter:
                 current_width = self.values.shape[1]
                 if required_width > current_width:
                     # Efficiently extend the array only if needed
-                    extension = np.zeros((max_iter, required_width - current_width), dtype=np.float64)
+                    extension = np.zeros(
+                        (max_iter, required_width - current_width), dtype=np.float64
+                    )
                     self.values = np.hstack((self.values, extension))
             return
 
@@ -213,10 +151,12 @@ class Parameter:
             raise ValueError("Values array has not been initialized.")
 
         if self.values.ndim == 1:
-            # Extend 1D array (for numeric parameters)
+            # Extend 1D array (for numeric variables)
             extension = np.empty(additional_iter, dtype=self.values.dtype)
             self.values = np.concatenate((self.values, extension))
         else:
-            # Extend 2D array (for categorical parameters)
-            extension = np.zeros((additional_iter, self.values.shape[1]), dtype=self.values.dtype)
+            # Extend 2D array (for categorical variables)
+            extension = np.zeros(
+                (additional_iter, self.values.shape[1]), dtype=self.values.dtype
+            )
             self.values = np.vstack((self.values, extension))
