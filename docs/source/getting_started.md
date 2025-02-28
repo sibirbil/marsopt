@@ -65,7 +65,7 @@ You then **return** a **float or integer** that indicates your objective value.
 
 ## 3. Minimal Working Example
 
-Below is a simplified yet demonstrative example of how to use `marsopt` to optimize a set of **typical machine learning hyperparameters** — learning rate, number of layers, optimizer type, and dropout rate:
+Below is a simplified yet demonstrative example of how to use `marsopt` to optimize a set of **typical machine learning hyperparameters** - learning rate, number of layers, optimizer type, and dropout rate:
 
 ```python
 from marsopt import Study, Trial
@@ -88,12 +88,12 @@ study.optimize(objective, n_trials=50)
 ```
 ```
 [I 2025-02-20 19:56:20, 16] Optimization started with 50 trials.
-[I 2025-02-20 19:56:20, 17] Trial 1 finished with value: -32.841185 and parameters: {'learning_rate': 0.001329, 'num_layers': 5, 'optimizer': adam}. Best is trial 0 with value: -32.841185.
-[I 2025-02-20 19:56:20, 18] Trial 2 finished with value: -30.738093 and parameters: {'learning_rate': 0.006174, 'num_layers': 3, 'optimizer': rmsprop}. Best is trial 0 with value: -32.841185.
-[I 2025-02-20 19:56:20, 18] Trial 3 finished with value: -6.086478 and parameters: {'learning_rate': 0.039676, 'num_layers': 3, 'optimizer': sgd}. Best is trial 0 with value: -32.841185.
+[I 2025-02-20 19:56:20, 17] Trial 1 finished with value: -32.841185 and variables: {'learning_rate': 0.001329, 'num_layers': 5, 'optimizer': adam}. Best is trial 0 with value: -32.841185.
+[I 2025-02-20 19:56:20, 18] Trial 2 finished with value: -30.738093 and variables: {'learning_rate': 0.006174, 'num_layers': 3, 'optimizer': rmsprop}. Best is trial 0 with value: -32.841185.
+[I 2025-02-20 19:56:20, 18] Trial 3 finished with value: -6.086478 and variables: {'learning_rate': 0.039676, 'num_layers': 3, 'optimizer': sgd}. Best is trial 0 with value: -32.841185.
 ...
 ...
-[I 2025-02-20 19:56:20, 48] Trial 50 finished with value: -37.847763 and parameters: {'learning_rate': 0.001313, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+[I 2025-02-20 19:56:20, 48] Trial 50 finished with value: -37.847763 and variables: {'learning_rate': 0.001313, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
 ```
 
 ## 4. Accessing Detailed Results
@@ -112,20 +112,20 @@ study.trials
 [{'iteration': 1,
   'objective_value': -32.84118472952258,
   'trial_time': 0.000260959001025185,
-  'parameters': {'learning_rate': 0.0013292918943162175,
+  'variables': {'learning_rate': 0.0013292918943162175,
    'num_layers': 5,
    'optimizer': 'adam'}},
  {'iteration': 2,
   'objective_value': -30.738093352759925,
   'trial_time': 0.0001224999978148844,
-  'parameters': {'learning_rate': 0.006173770394704574,
+  'variables': {'learning_rate': 0.006173770394704574,
    'num_layers': 3,
    'optimizer': 'rmsprop'}},
   ...
  {'iteration': 50,
   'objective_value': -37.84776341066681,
   'trial_time': 0.00016675000006216578,
-  'parameters': {'learning_rate': 0.001312740598216683,
+  'variables': {'learning_rate': 0.001312740598216683,
    'num_layers': 5,
    'optimizer': 'rmsprop'}}]
 ```
@@ -134,7 +134,7 @@ Each trial dictionary contains:
 - **iteration**: The trial index.  
 - **objective_value**: The final metric or loss returned by your `objective` function.  
 - **trial_time**: How long that trial took to run.  
-- **parameters**: A dictionary of all hyperparameters suggested for that trial.
+- **variables**: A dictionary of all variables suggested for that trial.
 
 Likewise, one can also inspect the **best trial**:
 
@@ -194,9 +194,9 @@ If you decide 50 trials aren’t enough, you can resume with additional trials:
 study.optimize(objective, n_trials=50)
 ```
 ```
-[I 2025-02-20 20:17:46, 688] Trial 51 finished with value: -37.917177 and parameters: {'learning_rate': 0.001021, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
-[I 2025-02-20 20:17:46, 689] Trial 52 finished with value: -37.066078 and parameters: {'learning_rate': 0.002586, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+[I 2025-02-20 20:17:46, 688] Trial 51 finished with value: -37.917177 and variables: {'learning_rate': 0.001021, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+[I 2025-02-20 20:17:46, 689] Trial 52 finished with value: -37.066078 and variables: {'learning_rate': 0.002586, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
 ...
-[I 2025-02-20 20:17:46, 722] Trial 100 finished with value: -37.908955 and parameters: {'learning_rate': 0.000909, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 93 with value: -37.917579.
+[I 2025-02-20 20:17:46, 722] Trial 100 finished with value: -37.908955 and variables: {'learning_rate': 0.000909, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 93 with value: -37.917579.
 ```
 `marsopt` retains its internal state and continues from the previously explored space.
