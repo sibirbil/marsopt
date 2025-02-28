@@ -20,7 +20,7 @@ pip install marsopt
 
 ## 2. Basic Concepts
 
-We reserve this section to introduce the main constructs in `marsopt`. 
+In this section, we will introduce the key components of `marsopt`. It is worth mentioning that our Python objects are named similarly to those found in the popular `optuna` package, making it easier for users to navigate and understand the structure.
 
 ### The **Study** Class
 
