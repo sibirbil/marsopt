@@ -114,7 +114,7 @@ For a continuous variable $x$ in the range $[\text{low},\text{high}]$, new sampl
    \end{cases}
    $$
 
-### Integer Variables
+#### Integer Variables
 
 To handle an integer variable in $\{\text{low},\ldots,\text{high}\}$, one can:
 
@@ -231,11 +231,13 @@ At **each trial** $t$ (from 1 up to $N$) do the following:
 **Else**  
 
 1. **Compute Progress**
+
    $$
    p_t = \frac{t}{N}
    $$
 
 2. **Determine Elite Count**
+
    $$
    n_{\text{elite}}(t) 
    =
@@ -244,6 +246,7 @@ At **each trial** $t$ (from 1 up to $N$) do the following:
    $$
 
 3. **Update Noise (cosine annealing)**
+
    $$
    \eta(t) 
    =
