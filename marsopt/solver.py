@@ -414,7 +414,7 @@ class Study:
                     value = self._reflect_at_boundaries(base_value + noise, low, high)
 
         if var_type == int:
-            value = int(value) + int((self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
+            value = int(value + (self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
 
         var.values[self._current_trial.trial_id] = value
 
