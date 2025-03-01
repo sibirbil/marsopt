@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- Background (Planet Mars) -->
+  <circle cx="200" cy="200" r="150" fill="#b5402e" />
+  
+  <!-- Surface details on Mars -->
+  <path d="M110 130 Q150 100, 200 140 Q250 180, 290 130" fill="#9e3526" />
+  <path d="M80 200 Q130 160, 190 200 Q250 240, 320 210" fill="#9e3526" />
+  <path d="M100 270 Q150 230, 210 250 Q270 270, 300 240" fill="#9e3526" />
+  
+  <!-- Optimization landscape -->
+  <path d="M60 120 Q100 90, 140 110 Q180 130, 220 100 Q260 70, 300 100 Q340 130, 380 110" 
+        fill="none" stroke="#4a89dc" stroke-width="3" />
+  
+  <!-- Random points (search) -->
+  <circle cx="90" cy="100" r="4" fill="#f9f9f9" />
+  <circle cx="140" cy="107" r="4" fill="#f9f9f9" />
+  <circle cx="190" cy="115" r="4" fill="#f9f9f9" />
+  <circle cx="240" cy="89" r="4" fill="#f9f9f9" />
+  <circle cx="290" cy="102" r="4" fill="#f9f9f9" />
+  <circle cx="340" cy="120" r="4" fill="#f9f9f9" />
+  
+  <!-- Optimal point (larger) -->
+  <circle cx="220" cy="100" r="8" fill="#ffcc29" stroke="#333" stroke-width="2" />
+  
+  <!-- Search arrows showing adaptive behavior -->
+  <path d="M90 100 L130 104" fill="none" stroke="#fff" stroke-width="1.5" />
+  <path d="M140 107 L180 110" fill="none" stroke="#fff" stroke-width="1.5" />
+  <path d="M190 115 L215 102" fill="none" stroke="#fff" stroke-width="1.5" />
+  <path d="M240 89 L225 98" fill="none" stroke="#fff" stroke-width="1.5" />
+  <path d="M290 102 L250 95" fill="none" stroke="#fff" stroke-width="1.5" />
+  <path d="M340 120 L300 108" fill="none" stroke="#fff" stroke-width="1.5" />
+  
+  <!-- Text elements -->
+  <text x="200" y="215" font-family="Arial, sans-serif" font-weight="bold" font-size="60" 
+        text-anchor="middle" fill="#ffffff">MARS</text>
+  <text x="200" y="245" font-family="Arial, sans-serif" font-size="15" 
+        text-anchor="middle" fill="#ffffff">Mixed Adaptive Random Search</text>
+</svg>

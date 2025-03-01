@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="docs/source/mars-logo.svg" alt="marsopt logo" width="250">
+</p>
+
+
 # marsopt
 **Mixed Adaptive Random Search for Optimization**
 
