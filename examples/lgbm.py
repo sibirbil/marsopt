@@ -52,6 +52,6 @@ study.optimize(objective, n_trials=100)
 best_trial = study.best_trial
 print("Best trial:")
 print(f"MSE: {best_trial['objective_value']}")
-print("  Best parameters:")
-for key, value in best_trial["parameters"].items():
+print("  Best variables:")
+for key, value in best_trial["variables"].items():
     print(f"    {key}: {value}")
