@@ -11,7 +11,7 @@
 - flexible handling of **log-scale** and **categorical** parameters,
 - minimization **or** maximization of any user-defined objective.
 
-MARS iteratively refines a population of “elite” solutions and generates new candidates by **perturbing** those elites with gradually decreasing noise. For a more detailed explanation of MARS, see our **[user guide](https://marsopt.readthedocs.io/en/latest/algorithm.html)** in the documentation.
+MARS iteratively refines a population of “elite” solutions and generates new candidates by **perturbing** those elites with gradually decreasing noise. For a more detailed explanation of MARS, see our **[algorithm overview](https://marsopt.readthedocs.io/en/latest/algorithm.html)** in the documentation.
 
 ## Features
 - **Mixed Variable Support**: Optimize integer, float (with optional log-scale), and categorical variables in the same study.  
