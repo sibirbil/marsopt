@@ -10,7 +10,13 @@ from functools import lru_cache
 
 
 class Trial:
-    __slots__ = ["study", "trial_id", "variables", "_validated_variables"]
+    __slots__ = [
+        "study",
+        "trial_id",
+        "variables",
+        "_validated_variables",
+        "user_attrs",
+    ]
 
     """
     Represents a single trial in the optimization process.
@@ -31,6 +37,20 @@ class Trial:
         self.trial_id = trial_id
         self.variables: Dict[str, Variable] = {}
         self._validated_variables = set()
+        self.user_attrs: Dict[str, Any] = {}
+
+    def add_attr(self, name: str, value: Any) -> None:
+        """
+        Add a user-defined attribute to the trial.
+
+        Parameters
+        ----------
+        name : str
+            The name of the attribute.
+        value : Any
+            The value of the attribute.
+        """
+        self.user_attrs[name] = value
 
     def __repr__(self) -> str:
         """
@@ -41,7 +61,7 @@ class Trial:
         str
             A string representation of the Trial instance.
         """
-        return f"Trial(trial_id={self.trial_id}, variables={self.variables})"
+        return f"Trial(trial_id={self.trial_id}, variables={self.variables}, user_attrs={self.user_attrs})"
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -311,6 +331,7 @@ class Study:
         self._objective_values: NDArray[np.float64] = None
         self._elapsed_times: NDArray[np.float64] = None
         self._current_trial: Optional[Trial] = None
+        self._trials: List[Trial] = []
         self._variables: Dict[str, Variable] = {}
 
         self._progress: float = None
@@ -658,6 +679,7 @@ class Study:
             )
 
             self._current_trial = Trial(self, iteration)
+            self._trials.append(self._current_trial)
             obj_value: float = objective_function(self._current_trial)
 
             if not isinstance(obj_value, (int, float)):
@@ -804,6 +826,10 @@ class Study:
             A dictionary of variable values from the best trial. Keys are variable names,
             and values are their respective values (int, float, or categorical as a string).
 
+            - **user_attrs** (:obj:`Dict[str, Any]`)
+
+            A dictionary of user-defined attributes for the best trial.
+
         """
         if self._objective_values is None:
             raise ValueError(
@@ -811,6 +837,7 @@ class Study:
             )
 
         best_iteration = int(self._obj_arg_sort[0])
+        best_trial = self._trials[best_iteration]
 
         return {
             "iteration": best_iteration + 1,
@@ -835,6 +862,7 @@ class Study:
                 )
                 or var.type not in (int, float)
             },
+            "user_attrs": best_trial.user_attrs,
         }
 
     @property
@@ -866,6 +894,10 @@ class Study:
 
             A dictionary of variable values from the trial. Keys are variable names,
             and values are their respective values (int, float, or categorical as a string).
+
+            - **user_attrs** (:obj:`Dict[str, Any]`)
+
+            A dictionary of user-defined attributes for the trial.
         """
         if self._objective_values is None:
             raise ValueError(
@@ -876,11 +908,13 @@ class Study:
         history = []
 
         for iteration in range(final_iteration):
+            trial = self._trials[iteration]
             trial_dict = {
                 "iteration": iteration + 1,
                 "objective_value": float(self._objective_values[iteration]),
                 "trial_time": float(self._elapsed_times[iteration]),
                 "variables": {},
+                "user_attrs": trial.user_attrs,
             }
 
             # Store variable values for this iteration
