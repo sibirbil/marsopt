@@ -1,5 +1,6 @@
 [project]
 name = "marsopt"
+dynamic = ["version"]
 description = "Mixed Adaptive Random Search for Optimization"
 readme = "README.md"
 license = {text = "MIT License"}
