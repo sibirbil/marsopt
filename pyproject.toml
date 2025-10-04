@@ -1,6 +1,5 @@
 [project]
 name = "marsopt"
-version = "0.1.0"  # Changed to semantic versioning format
 description = "Mixed Adaptive Random Search for Optimization"
 readme = "README.md"
 license = {text = "MIT License"}
