@@ -413,7 +413,7 @@ class Study:
 
                     value = self._reflect_at_boundaries(base_value + noise, low, high)
 
-        if var_type == int:
+        if var_type is int:
             value = int(value) + int((self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
 
         var.values[self._current_trial.trial_id] = value
@@ -447,7 +447,7 @@ class Study:
             self._variables[name] = var
 
         else:
-            if var.type != type(categories):
+            if var.type is not type(categories):
                 raise TypeError(
                     f"Variable '{name}' has already been registered with type {var.type}, "
                     f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
@@ -819,10 +819,10 @@ class Study:
             "variables": {
                 var_name: (
                     int(var.values[best_iteration])
-                    if var.type == int
+                    if var.type is int
                     else (
                         float(var.values[best_iteration])
-                        if var.type == float
+                        if var.type is float
                         else var.category_indexer.get_strings(
                             np.argmax(var.values[best_iteration])
                         )
@@ -888,10 +888,10 @@ class Study:
                 # Skip variables that weren't used in this trial
                 var_value = var.values[iteration]
 
-                if var.type == int:
+                if var.type is int:
                     if not np.isnan(var_value):
                         trial_dict["variables"][var_name] = int(var_value)
-                elif var.type == float:
+                elif var.type is float:
                     if not np.isnan(var_value):
                         trial_dict["variables"][var_name] = float(var_value)
                 else:  # categorical variables
