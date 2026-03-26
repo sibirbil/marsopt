@@ -63,7 +63,7 @@ You then **return** a **float or integer** that indicates your objective value.
 ### Objective Function
 
 - It must receive a `Trial` object and use that object’s **suggest** methods to propose values.  
-- After configuring and running your model or simulation with those values, it must **return a single numeric value**.
+- After configuring and running your model or simulation with those values, it must **return a single finite numeric value**.
 
 ## 3. Minimal Working Example
 
@@ -148,7 +148,7 @@ study.best_trial
 {'iteration': 35, 
  'objective_value': -37.917443575884434, 
  'trial_time': 0.0003397920008865185, 
- 'params': {'learning_rate': 0.0010127390829420338, 
+ 'variables': {'learning_rate': 0.0010127390829420338,
   'num_layers': 5, 
   'optimizer': 'rmsprop'}}
 ```
@@ -180,7 +180,7 @@ This section gives a few other parameters that users can adjust.
 ### Controlling Noise
 
 - **`initial_noise`** (float): The initial sampling noise. Default is `0.2`.  
-- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `2 / n_trials` if not set.  
+- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `min(2 / n_trials, initial_noise)` if not set.
 
 Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` down to `final_noise`, facilitating broad exploration early on and refinement later.
 

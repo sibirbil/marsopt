@@ -102,7 +102,7 @@ class Variable:
         """
         # Handle numeric types
         if isinstance(var_type_or_categories, type):
-            self.values = np.empty(shape=(max_iter,), dtype=np.float64)
+            self.values = np.full(shape=(max_iter,), fill_value=np.nan, dtype=np.float64)
             self.type = var_type_or_categories
             return
 
@@ -152,7 +152,7 @@ class Variable:
 
         if self.values.ndim == 1:
             # Extend 1D array (for numeric variables)
-            extension = np.empty(additional_iter, dtype=self.values.dtype)
+            extension = np.full(additional_iter, fill_value=np.nan, dtype=self.values.dtype)
             self.values = np.concatenate((self.values, extension))
         else:
             # Extend 2D array (for categorical variables)

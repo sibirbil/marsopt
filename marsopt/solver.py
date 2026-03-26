@@ -1,4 +1,5 @@
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
+import math
 import numpy as np
 from numpy.typing import NDArray
 from time import perf_counter
@@ -305,7 +306,7 @@ class Study:
             round(sqrt(`n_trials`))
         final_noise : float, default = None
             Final noise level. If `None`, it is set as:
-            max(10, 1.0 / `n_trials`)
+            min(2.0 / `n_trials`, `initial_noise`)
         random_state : int, default = None
             Seed for reproducibility.
         verbose : bool, default = True
@@ -338,7 +339,8 @@ class Study:
         self._current_noise: float = None
         self._current_n_elites: float = None
         self._current_cat_temp: float = None
-        self._obj_arg_sort: NDArray[np.int64] = None
+        self._direction_multiplier: float = None
+        self._elite_indices: NDArray[np.int64] = None
         self._logger = OptimizationLogger() if verbose else None
 
     def __repr__(self) -> str:
@@ -397,42 +399,62 @@ class Study:
                     f"but an attempt was made to register it as type {var_type}. Ensure consistency."
                 )
 
-        if self._current_trial.trial_id < self.n_init_points:
+        trial_id = self._current_trial.trial_id
+
+        if trial_id < self.n_init_points:
             value = self._sample_value(low, high, log)
 
         else:
-            var_values = var.values[: self._current_trial.trial_id]
-            range_mask = (var_values >= low) & (var_values <= high)
+            var_values = var.values[:trial_id]
+            elite_var = var_values[self._elite_indices]
+            in_bounds = (elite_var >= low) & (elite_var <= high)
 
-            if not np.any(range_mask):
-                value = self._sample_value(low, high, log)
+            if np.any(in_bounds):
+                base_value = self._rng.choice(elite_var[in_bounds])
+            else:
+                range_mask = (var_values >= low) & (var_values <= high)
+                n_in_bounds = int(range_mask.sum())
+                if n_in_bounds == 0:
+                    value = self._sample_value(low, high, log)
+                    if var_type is int:
+                        value = int(value) + int(
+                            (self._rng.random() < abs(value - int(value)))
+                            * (1 if value > 0 else -1)
+                        )
+                    var.values[trial_id] = value
+                    return value
+                masked_var = var_values[range_mask]
+                n_elites = min(self._current_n_elites, n_in_bounds)
+                if n_elites >= n_in_bounds:
+                    base_value = self._rng.choice(masked_var)
+                else:
+                    masked_obj = (
+                        self._direction_multiplier
+                        * self._objective_values[:trial_id][range_mask]
+                    )
+                    top_k = np.argpartition(masked_obj, n_elites - 1)[:n_elites]
+                    base_value = self._rng.choice(masked_var[top_k])
+
+            if log:
+                log_base = np.log(base_value)
+                log_high = np.log(high)
+                log_low = np.log(low)
+                log_range = log_high - log_low
+                noise = self._rng.normal(
+                    loc=0.0, scale=self._current_noise * log_range
+                )
+
+                value = np.exp(
+                    self._reflect_at_boundaries(log_base + noise, log_low, log_high)
+                )
 
             else:
-                sorted_indices = self._obj_arg_sort[range_mask[self._obj_arg_sort]]
-                values_masked = var_values[sorted_indices]
-                base_value = self._rng.choice(values_masked[: self._current_n_elites])
+                var_range = high - low
+                noise = self._rng.normal(
+                    loc=0.0, scale=self._current_noise * var_range
+                )
 
-                if log:
-                    log_base = np.log(base_value)
-                    log_high = np.log(high)
-                    log_low = np.log(low)
-                    log_range = log_high - log_low
-                    noise = self._rng.normal(
-                        loc=0.0, scale=self._current_noise * log_range
-                    )
-
-                    value = np.exp(
-                        self._reflect_at_boundaries(log_base + noise, log_low, log_high)
-                    )
-
-                else:
-                    # Apply noise directly
-                    var_range = high - low
-                    noise = self._rng.normal(
-                        loc=0.0, scale=self._current_noise * var_range
-                    )
-
-                    value = self._reflect_at_boundaries(base_value + noise, low, high)
+                value = self._reflect_at_boundaries(base_value + noise, low, high)
 
         if var_type is int:
             value = int(value) + int((self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
@@ -466,7 +488,6 @@ class Study:
                 max_iter=self.n_trials, var_type_or_categories=categories
             )
             self._variables[name] = var
-
         else:
             if var.type is not type(categories):
                 raise TypeError(
@@ -474,38 +495,59 @@ class Study:
                     f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
                 )
 
+        cat_indices = var.category_indexer.get_indices(categories)
+        cat_size = cat_indices.size
+
+        # Expand one-hot array if new categories appeared
+        if cat_indices.max() + 1 > var.values.shape[1]:
             var.set_values(
                 max_iter=self.n_trials, var_type_or_categories=categories
             )
-
-        cat_indices = var.category_indexer.get_indices(categories)
-        cat_size = cat_indices.size
 
         if trial_id < self.n_init_points:
             category_idx = self._rng.choice(cat_indices)
 
         else:
+            elite_values = var.values[self._elite_indices][:, cat_indices]
+            active_elite_values = elite_values[np.any(elite_values, axis=1)]
 
-            sorted_indices = self._obj_arg_sort[: self._current_n_elites]
+            if active_elite_values.size == 0:
+                previous_values = var.values[:trial_id][:, cat_indices]
+                active_previous_values = previous_values[np.any(previous_values, axis=1)]
 
-            var_values = var.values[sorted_indices[:, np.newaxis], cat_indices]
+                if active_previous_values.size == 0:
+                    category_idx = self._rng.choice(cat_indices)
+                else:
+                    active_elite_values = active_previous_values
 
-            noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
-
-            chosen_elites_with_noise = var_values.mean(axis=0) + noise
-
-            for i in range(cat_size):
-                chosen_elites_with_noise[i] = self._reflect_at_boundaries(
-                    chosen_elites_with_noise[i]
+            if active_elite_values.size != 0:
+                noise = self._rng.normal(
+                    loc=0.0, scale=self._current_noise, size=cat_size
                 )
 
-            exps = np.exp(
-                (chosen_elites_with_noise - np.max(chosen_elites_with_noise))
-                * self._current_cat_temp
-            )
-            probs = exps / exps.sum()
+                chosen_elites_with_noise = active_elite_values.mean(axis=0) + noise
 
-            category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
+                while True:
+                    below = chosen_elites_with_noise < 0.0
+                    above = chosen_elites_with_noise > 1.0
+                    if not (np.any(below) or np.any(above)):
+                        break
+                    chosen_elites_with_noise = np.where(
+                        below, -chosen_elites_with_noise / 2.0, chosen_elites_with_noise
+                    )
+                    chosen_elites_with_noise = np.where(
+                        above,
+                        1.0 - (chosen_elites_with_noise - 1.0) / 2.0,
+                        chosen_elites_with_noise,
+                    )
+
+                exps = np.exp(
+                    (chosen_elites_with_noise - chosen_elites_with_noise.max())
+                    * self._current_cat_temp
+                )
+                probs = exps / exps.sum()
+
+                category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
         result = np.zeros(len(var.category_indexer), dtype=np.float64)
         result[category_idx] = 1.0
@@ -596,9 +638,8 @@ class Study:
         if not callable(objective_function):
             raise TypeError("objective_function must be a callable function.")
 
-        ## check existing trial:
-        if self._objective_values is not None:
-            n_exist_trials = int(self._objective_values.size)
+        if self._trials:
+            n_exist_trials = len(self._trials)
 
             # Find best iteration based on direction
             if self.direction == "minimize":
@@ -611,10 +652,6 @@ class Study:
             total_trials = n_trials + n_exist_trials
             self.n_trials = total_trials
 
-            if self.final_noise is None:
-                self.final_noise = 1.0 / total_trials
-
-            # Correctly use np.hstack with tuples
             old_objective_values = self._objective_values
             old_elapsed_times = self._elapsed_times
 
@@ -622,8 +659,10 @@ class Study:
             self._elapsed_times = np.empty(shape=(total_trials,), dtype=np.float64)
 
             # Copy existing data
-            self._objective_values[:n_exist_trials] = old_objective_values
-            self._elapsed_times[:n_exist_trials] = old_elapsed_times
+            self._objective_values[:n_exist_trials] = old_objective_values[
+                :n_exist_trials
+            ]
+            self._elapsed_times[:n_exist_trials] = old_elapsed_times[:n_exist_trials]
 
             for var in self._variables.keys():
                 self._variables[var].add_iter(n_trials)
@@ -652,35 +691,45 @@ class Study:
             if self.n_init_points is None:
                 self.n_init_points = max(10, round(np.sqrt(self.n_trials)))
 
-        elite_scale: float = 2.0 * np.sqrt(total_trials)
-        direction_multipler = 1.0 if self.direction == "minimize" else -1.0
+        elite_scale: float = 2.0 * math.sqrt(total_trials)
+        self._direction_multiplier = 1.0 if self.direction == "minimize" else -1.0
+
+        noise_range = self.initial_noise - self.final_noise
 
         # Start from the existing trials count
         for iteration in range(n_exist_trials, total_trials):
             start_time = perf_counter()
             self._progress = (iteration + 1) / self.n_trials
 
+            for var in self._variables.values():
+                if var.values.ndim == 1:
+                    var.values[iteration] = np.nan
+                else:
+                    var.values[iteration, :] = 0.0
+
             if iteration >= self.n_init_points:
                 self._current_n_elites = max(
                     1, round(elite_scale * self._progress * (1 - self._progress))
                 )
 
-                cos_anneal = (1 + np.cos(np.pi * self._progress)) * 0.5
+                cos_anneal = (1.0 + math.cos(math.pi * self._progress)) * 0.5
 
-                self._current_noise = (
-                    self.final_noise
-                    + (self.initial_noise - self.final_noise) * cos_anneal
-                )
+                self._current_noise = self.final_noise + noise_range * cos_anneal
 
                 self._current_cat_temp = 1.0 / (0.1 + 0.9 * cos_anneal)
 
-            self._obj_arg_sort = np.argsort(
-                direction_multipler * self._objective_values[:iteration]
-            )
+                obj_scaled = (
+                    self._direction_multiplier * self._objective_values[:iteration]
+                )
+                k = self._current_n_elites
+                if k >= iteration:
+                    self._elite_indices = np.arange(iteration)
+                else:
+                    self._elite_indices = np.argpartition(obj_scaled, k - 1)[:k]
 
-            self._current_trial = Trial(self, iteration)
-            self._trials.append(self._current_trial)
-            obj_value: float = objective_function(self._current_trial)
+            trial = Trial(self, iteration)
+            self._current_trial = trial
+            obj_value: float = objective_function(trial)
 
             if not isinstance(obj_value, (int, float)):
                 raise TypeError(
@@ -689,8 +738,15 @@ class Study:
                     "numerical value."
                 )
 
+            if not np.isfinite(obj_value):
+                raise ValueError(
+                    f"The objective function returned a non-finite value: {obj_value}. "
+                    "Please ensure that the function returns a finite numerical value (not NaN or Inf)."
+                )
+
             self._elapsed_times[iteration] = perf_counter() - start_time
             self._objective_values[iteration] = obj_value
+            self._trials.append(trial)
 
             # Update best value based on optimization direction
             if self.verbose:
@@ -702,7 +758,7 @@ class Study:
 
                 self._logger.log_trial(
                     iteration=iteration + 1,
-                    variables=self._current_trial.variables,
+                    variables=trial.variables,
                     objective=obj_value,
                     best_value=best_value,
                     best_iteration=best_iteration + 1,
@@ -831,37 +887,40 @@ class Study:
             A dictionary of user-defined attributes for the best trial.
 
         """
-        if self._objective_values is None:
+        if not self._trials:
             raise ValueError(
                 "At least one iteration must be completed before accessing best trial."
             )
 
-        best_iteration = int(self._obj_arg_sort[0])
+        n_completed = len(self._trials)
+        obj_vals = self._objective_values[:n_completed]
+
+        if self.direction == "minimize":
+            best_iteration = int(np.argmin(obj_vals))
+        else:
+            best_iteration = int(np.argmax(obj_vals))
+
         best_trial = self._trials[best_iteration]
+
+        variables = {}
+        for var_name, var in self._variables.items():
+            if var.type in (int, float):
+                if not np.isnan(var.values[best_iteration]):
+                    if var.type is int:
+                        variables[var_name] = int(var.values[best_iteration])
+                    else:
+                        variables[var_name] = float(var.values[best_iteration])
+            else:
+                if np.any(var.values[best_iteration]):
+                    variables[var_name] = var.category_indexer.get_strings(
+                        np.argmax(var.values[best_iteration])
+                    )
 
         return {
             "iteration": best_iteration + 1,
             "objective_value": float(self._objective_values[best_iteration]),
             "trial_time": float(self._elapsed_times[best_iteration]),
-            "variables": {
-                var_name: (
-                    int(var.values[best_iteration])
-                    if var.type is int
-                    else (
-                        float(var.values[best_iteration])
-                        if var.type is float
-                        else var.category_indexer.get_strings(
-                            np.argmax(var.values[best_iteration])
-                        )
-                    )
-                )
-                for var_name, var in self._variables.items()
-                if (
-                    var.type in (int, float)
-                    and not np.isnan(var.values[best_iteration])
-                )
-                or var.type not in (int, float)
-            },
+            "variables": variables,
             "user_attrs": best_trial.user_attrs,
         }
 
@@ -899,15 +958,15 @@ class Study:
 
             A dictionary of user-defined attributes for the trial.
         """
-        if self._objective_values is None:
+        if not self._trials:
             raise ValueError(
                 "At least one iteration must be completed before accessing trials."
             )
 
-        final_iteration = self._obj_arg_sort.size + 1
+        n_completed = len(self._trials)
         history = []
 
-        for iteration in range(final_iteration):
+        for iteration in range(n_completed):
             trial = self._trials[iteration]
             trial_dict = {
                 "iteration": iteration + 1,
@@ -953,12 +1012,12 @@ class Study:
             A NumPy array containing the recorded objective function values for
             all trials, ordered by their trial index.
         """
-        if self._objective_values is None:
+        if not self._trials:
             raise ValueError(
                 "At least one iteration must be completed before accessing objective values."
             )
         else:
-            return self._objective_values[: self._obj_arg_sort.size + 1]
+            return self._objective_values[: len(self._trials)]
 
     @property
     def elapsed_times(self) -> NDArray[np.float64]:
@@ -974,9 +1033,9 @@ class Study:
             A NumPy array containing the recorded execution times (in seconds)
             for each trial, ordered by their trial index.
         """
-        if self._elapsed_times is None:
+        if not self._trials:
             raise ValueError(
                 "At least one iteration must be completed before accessing elapsed times."
             )
         else:
-            return self._elapsed_times[: self._obj_arg_sort.size + 1]
+            return self._elapsed_times[: len(self._trials)]

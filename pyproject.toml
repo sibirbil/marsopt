@@ -55,7 +55,7 @@ include = ["marsopt"]
 [project.urls]
 Documentation = "https://marsopt.readthedocs.io/en/latest/"
 Repository = "https://github.com/sibirbil/marsopt"
-Tracker = "https://github.com/sibirbil/marspot/issues"
+Tracker = "https://github.com/sibirbil/marsopt/issues"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
