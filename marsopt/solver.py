@@ -910,8 +910,8 @@ class Study:
         # rho validation
         if not isinstance(rho, (int, float)):
             raise TypeError(f"rho must be a number, got {type(rho)}")
-        if not (0 <= rho <= 1):
-            raise ValueError(f"rho must be between 0 and 1, got {rho}")
+        if not (0.15 <= rho <= 1):
+            raise ValueError(f"rho must be between 0.15 and 1, got {rho}")
 
         # elite_window validation
         if elite_window is not None:
