@@ -324,12 +324,15 @@ class Study:
         elite_weighting : str, default = "random"
             How a base value is selected from elites. ``"random"`` picks one
             elite uniformly at random. ``"log_rank"`` computes a weighted mean
-            using CMA-ES-style log-rank weights. ``"mixed"`` flips a coin
-            each trial: with probability ``rho`` uses log-rank weighted mean,
-            with probability ``1 - rho`` picks a single random elite.
+            using CMA-ES-style log-rank weights. ``"mixed"`` uses a
+            floored-parabolic schedule: rho_t = 0.15 + (rho - 0.15) * 4p(1-p),
+            peaking mid-search when the elite pool is largest. With probability
+            rho_t uses log-rank weighted mean, otherwise picks a single
+            random elite.
         rho : float, default = 0.5
-            Mixing probability for ``elite_weighting="mixed"``. Ignored
-            for other weighting modes.
+            Peak weighted-mean probability for ``"mixed"`` mode.
+            Effective probability follows a parabolic schedule synchronized
+            with the elite count.
         elite_window : int, default = None
             If set, only the most recent ``elite_window`` completed trials are
             considered for elite selection. If ``None``, full history is used.
@@ -578,7 +581,6 @@ class Study:
                     w = w / w.sum()
                     elite_mean = np.average(active_elite_values, axis=0, weights=w)
                 else:
-                    # Single random elite's one-hot (not mean of all)
                     idx = self._rng.randint(len(active_elite_values))
                     elite_mean = active_elite_values[idx].astype(np.float64)
 
@@ -793,7 +795,7 @@ class Study:
                     local_idx = np.argpartition(obj_scaled, k - 1)[:k]
                     self._elite_indices = local_idx + window_start
 
-                # Compute elite weights (for log_rank and mixed modes)
+                # Compute elite weights
                 if self.elite_weighting in ("log_rank", "mixed") and k > 1:
                     elite_obj = (
                         self._direction_multiplier
@@ -815,8 +817,11 @@ class Study:
                     self._force_random = False
 
                 # Per-trial weighted decision (one flip per trial)
+                # Floored parabolic: peaks mid-search, floor at 0.15
                 if self.elite_weighting == "mixed":
-                    self._use_weighted = self._rng.random() < self.rho
+                    parabola = 4.0 * self._progress * (1.0 - self._progress)
+                    rho_t = 0.15 + (self.rho - 0.15) * parabola
+                    self._use_weighted = self._rng.random() < rho_t
                 elif self.elite_weighting == "log_rank":
                     self._use_weighted = True
                 else:
