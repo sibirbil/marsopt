@@ -292,6 +292,7 @@ class Study:
         exploration_mode: str = "none",
         epsilon: float = 1.0,
         elite_weighting: str = "random",
+        rho: float = 0.5,
         elite_window: Optional[int] = None,
         random_state: Optional[int] = None,
         verbose: bool = True,
@@ -323,8 +324,12 @@ class Study:
         elite_weighting : str, default = "random"
             How a base value is selected from elites. ``"random"`` picks one
             elite uniformly at random. ``"log_rank"`` computes a weighted mean
-            using CMA-ES-style log-rank weights, giving higher weight to
-            better-ranked elites.
+            using CMA-ES-style log-rank weights. ``"mixed"`` flips a coin
+            each trial: with probability ``rho`` uses log-rank weighted mean,
+            with probability ``1 - rho`` picks a single random elite.
+        rho : float, default = 0.5
+            Mixing probability for ``elite_weighting="mixed"``. Ignored
+            for other weighting modes.
         elite_window : int, default = None
             If set, only the most recent ``elite_window`` completed trials are
             considered for elite selection. If ``None``, full history is used.
@@ -344,6 +349,7 @@ class Study:
             exploration_mode=exploration_mode,
             epsilon=epsilon,
             elite_weighting=elite_weighting,
+            rho=rho,
             elite_window=elite_window,
         )
 
@@ -355,6 +361,7 @@ class Study:
         self.exploration_mode = exploration_mode
         self.epsilon = epsilon
         self.elite_weighting = elite_weighting
+        self.rho = rho
         self.elite_window = elite_window
 
         self._rng = np.random.RandomState(random_state)
@@ -441,8 +448,14 @@ class Study:
             in_bounds = (elite_var >= low) & (elite_var <= high)
 
             if np.any(in_bounds):
-                if self._elite_weights is not None:
-                    # log_rank: weighted mean of in-bounds elites
+                use_weighted = (
+                    self._elite_weights is not None
+                    and (
+                        self.elite_weighting == "log_rank"
+                        or (self.elite_weighting == "mixed" and self._rng.random() < self.rho)
+                    )
+                )
+                if use_weighted:
                     w = self._elite_weights[in_bounds]
                     w = w / w.sum()
                     base_value = np.dot(w, elite_var[in_bounds])
@@ -564,7 +577,15 @@ class Study:
                     loc=0.0, scale=self._current_noise, size=cat_size
                 )
 
-                if self._elite_weights is not None and active_mask is not None:
+                use_weighted = (
+                    self._elite_weights is not None
+                    and active_mask is not None
+                    and (
+                        self.elite_weighting == "log_rank"
+                        or (self.elite_weighting == "mixed" and self._rng.random() < self.rho)
+                    )
+                )
+                if use_weighted:
                     w = self._elite_weights[active_mask]
                     w = w / w.sum()
                     elite_mean = np.average(active_elite_values, axis=0, weights=w)
@@ -782,8 +803,8 @@ class Study:
                     local_idx = np.argpartition(obj_scaled, k - 1)[:k]
                     self._elite_indices = local_idx + window_start
 
-                # Compute elite weights
-                if self.elite_weighting == "log_rank" and k > 1:
+                # Compute elite weights (for log_rank and mixed modes)
+                if self.elite_weighting in ("log_rank", "mixed") and k > 1:
                     elite_obj = (
                         self._direction_multiplier
                         * self._objective_values[self._elite_indices]
@@ -855,6 +876,7 @@ class Study:
         exploration_mode: Any = "none",
         epsilon: Any = 1.0,
         elite_weighting: Any = "random",
+        rho: Any = 0.5,
         elite_window: Any = None,
     ) -> None:
         """
@@ -873,10 +895,16 @@ class Study:
             raise ValueError(f"epsilon must be positive, got {epsilon}")
 
         # elite_weighting validation
-        if elite_weighting not in ("random", "log_rank"):
+        if elite_weighting not in ("random", "log_rank", "mixed"):
             raise ValueError(
-                f"elite_weighting must be 'random' or 'log_rank', got '{elite_weighting}'"
+                f"elite_weighting must be 'random', 'log_rank', or 'mixed', got '{elite_weighting}'"
             )
+
+        # rho validation
+        if not isinstance(rho, (int, float)):
+            raise TypeError(f"rho must be a number, got {type(rho)}")
+        if not (0 <= rho <= 1):
+            raise ValueError(f"rho must be between 0 and 1, got {rho}")
 
         # elite_window validation
         if elite_window is not None:
