@@ -379,6 +379,9 @@ class Study:
         self._elite_indices: NDArray[np.int64] = None
         self._elite_weights: NDArray[np.float64] = None
         self._force_random: bool = False
+
+        self._use_weighted: bool = False
+
         self._logger = OptimizationLogger() if verbose else None
 
     def __repr__(self) -> str:
@@ -448,14 +451,7 @@ class Study:
             in_bounds = (elite_var >= low) & (elite_var <= high)
 
             if np.any(in_bounds):
-                use_weighted = (
-                    self._elite_weights is not None
-                    and (
-                        self.elite_weighting == "log_rank"
-                        or (self.elite_weighting == "mixed" and self._rng.random() < self.rho)
-                    )
-                )
-                if use_weighted:
+                if self._use_weighted and self._elite_weights is not None:
                     w = self._elite_weights[in_bounds]
                     w = w / w.sum()
                     base_value = np.dot(w, elite_var[in_bounds])
@@ -577,20 +573,14 @@ class Study:
                     loc=0.0, scale=self._current_noise, size=cat_size
                 )
 
-                use_weighted = (
-                    self._elite_weights is not None
-                    and active_mask is not None
-                    and (
-                        self.elite_weighting == "log_rank"
-                        or (self.elite_weighting == "mixed" and self._rng.random() < self.rho)
-                    )
-                )
-                if use_weighted:
+                if self._use_weighted and self._elite_weights is not None and active_mask is not None:
                     w = self._elite_weights[active_mask]
                     w = w / w.sum()
                     elite_mean = np.average(active_elite_values, axis=0, weights=w)
                 else:
-                    elite_mean = active_elite_values.mean(axis=0)
+                    # Single random elite's one-hot (not mean of all)
+                    idx = self._rng.randint(len(active_elite_values))
+                    elite_mean = active_elite_values[idx].astype(np.float64)
 
                 chosen_elites_with_noise = elite_mean + noise
 
@@ -823,8 +813,17 @@ class Study:
                     self._force_random = self._rng.random() < eps_t
                 else:
                     self._force_random = False
+
+                # Per-trial weighted decision (one flip per trial)
+                if self.elite_weighting == "mixed":
+                    self._use_weighted = self._rng.random() < self.rho
+                elif self.elite_weighting == "log_rank":
+                    self._use_weighted = True
+                else:
+                    self._use_weighted = False
             else:
                 self._force_random = False
+                self._use_weighted = False
 
             trial = Trial(self, iteration)
             self._current_trial = trial
@@ -847,13 +846,16 @@ class Study:
             self._objective_values[iteration] = obj_value
             self._trials.append(trial)
 
+            improved = (self.direction == "minimize" and obj_value < best_value) or (
+                self.direction == "maximize" and obj_value > best_value
+            )
+
             # Update best value based on optimization direction
+            if improved:
+                best_value = obj_value
+                best_iteration = iteration
+
             if self.verbose:
-                if (self.direction == "minimize" and obj_value < best_value) or (
-                    self.direction == "maximize" and obj_value > best_value
-                ):
-                    best_value = obj_value
-                    best_iteration = iteration
 
                 self._logger.log_trial(
                     iteration=iteration + 1,
