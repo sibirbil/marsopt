@@ -285,7 +285,7 @@ class Study:
 
     def __init__(
         self,
-        initial_noise: float = 0.2,
+        initial_noise: float = 0.33,
         direction: str = "minimize",
         n_init_points: Optional[int] = None,
         final_noise: Optional[float] = None,
@@ -299,7 +299,7 @@ class Study:
 
         Parameters
         ----------
-        initial_noise : float, default = 0.2
+        initial_noise : float, default = 0.33
             Initial noise level.
         direction : str, default = "minimize"
             Direction of optimization, either "minimize" or "maximize".
@@ -308,7 +308,7 @@ class Study:
             round(sqrt(`n_trials`))
         final_noise : float, default = None
             Final noise level. If `None`, it is set as:
-            min(2.0 / `n_trials`, `initial_noise`)
+            min(1.0 / `n_trials`, `initial_noise`)
         epsilon : float, default = 1.0
             Epsilon-greedy exploration constant. At each adaptive trial, with
             probability ``epsilon / (t + 1)`` a uniform random sample is drawn
@@ -518,7 +518,7 @@ class Study:
             category_idx = self._rng.choice(cat_indices)
 
         else:
-            # Elite frequency + noise + temperature softmax (1D version of original)
+            # Elite frequency + noise + temperature softmax
             elite_cats = var.values[self._elite_indices]
             freq = np.zeros(cat_size, dtype=np.float64)
             for j, ci in enumerate(cat_indices):
@@ -527,26 +527,27 @@ class Study:
             total = freq.sum()
             if total == 0:
                 category_idx = self._rng.choice(cat_indices)
-            else:
-                elite_mean = freq / total
+                var.values[trial_id] = category_idx
+                return var.category_indexer.get_strings(category_idx)
+            elite_mean = freq / total
 
-                # Gaussian noise + reflect at [0,1]
-                noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
-                noisy = elite_mean + noise
-                while True:
-                    below = noisy < 0.0
-                    above = noisy > 1.0
-                    if not (np.any(below) or np.any(above)):
-                        break
-                    noisy = np.where(below, -noisy / 2.0, noisy)
-                    noisy = np.where(above, 1.0 - (noisy - 1.0) / 2.0, noisy)
+            # Gaussian noise + reflect at [0,1]
+            noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
+            noisy = elite_mean + noise
+            while True:
+                below = noisy < 0.0
+                above = noisy > 1.0
+                if not (np.any(below) or np.any(above)):
+                    break
+                noisy = np.where(below, -noisy / 2.0, noisy)
+                noisy = np.where(above, 1.0 - (noisy - 1.0) / 2.0, noisy)
 
-                # Temperature-scaled softmax
-                temp = self._current_cat_temp if self._current_cat_temp is not None else 1.0
-                exps = np.exp((noisy - noisy.max()) * temp)
-                probs = exps / exps.sum()
+            # Temperature-scaled softmax
+            temp = self._current_cat_temp if self._current_cat_temp is not None else 1.0
+            exps = np.exp((noisy - noisy.max()) * temp)
+            probs = exps / exps.sum()
 
-                category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
+            category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
         var.values[trial_id] = category_idx
 
@@ -678,7 +679,7 @@ class Study:
             best_iteration = None
 
             if self.final_noise is None:
-                self.final_noise = min(2.0 / n_trials, self.initial_noise)
+                self.final_noise = min(1.0 / n_trials, self.initial_noise)
 
             self.n_trials = n_trials
             self._objective_values = np.empty(shape=(n_trials,), dtype=np.float64)
