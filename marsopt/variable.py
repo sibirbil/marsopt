@@ -112,22 +112,13 @@ class Variable:
             if not categories:
                 raise ValueError("Categories list cannot be empty")
 
-            # Get indices for all categories
-            category_indices = self.category_indexer.get_indices(categories)
-            required_width = category_indices.max() + 1
+            # Register categories in the indexer
+            self.category_indexer.get_indices(categories)
 
-            # Initialize or resize values array as needed
+            # 1D int array storing category index per trial (-1 = not yet suggested)
             if self.values is None:
-                self.values = np.zeros((max_iter, required_width), dtype=np.float64)
+                self.values = np.full(max_iter, fill_value=-1, dtype=np.int32)
                 self.type = list
-            else:
-                current_width = self.values.shape[1]
-                if required_width > current_width:
-                    # Efficiently extend the array only if needed
-                    extension = np.zeros(
-                        (max_iter, required_width - current_width), dtype=np.float64
-                    )
-                    self.values = np.hstack((self.values, extension))
             return
 
     def add_iter(self, additional_iter: int) -> None:
@@ -150,13 +141,9 @@ class Variable:
         if self.values is None:
             raise ValueError("Values array has not been initialized.")
 
-        if self.values.ndim == 1:
-            # Extend 1D array (for numeric variables)
-            extension = np.full(additional_iter, fill_value=np.nan, dtype=self.values.dtype)
+        if self.type is list:
+            extension = np.full(additional_iter, fill_value=-1, dtype=np.int32)
             self.values = np.concatenate((self.values, extension))
         else:
-            # Extend 2D array (for categorical variables)
-            extension = np.zeros(
-                (additional_iter, self.values.shape[1]), dtype=self.values.dtype
-            )
-            self.values = np.vstack((self.values, extension))
+            extension = np.full(additional_iter, fill_value=np.nan, dtype=self.values.dtype)
+            self.values = np.concatenate((self.values, extension))

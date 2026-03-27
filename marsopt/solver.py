@@ -479,18 +479,19 @@ class Study:
 
     def _suggest_categorical(self, name: str, categories: List[str]) -> Any:
         """
-        Suggests a categorical variable value.
+        Suggests a categorical variable value using elite frequency
+        with temperature-scaled softmax.
 
         Parameters
         ----------
         name : str
             The name of the variable.
-        categories : List[Any]
+        categories : List[str]
             A list of possible categorical values.
 
         Returns
         -------
-        Any
+        str
             The suggested categorical value.
         """
         var = self._variables.get(name)
@@ -508,69 +509,46 @@ class Study:
                     f"Variable '{name}' has already been registered with type {var.type}, "
                     f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
                 )
+            var.category_indexer.get_indices(categories)
 
         cat_indices = var.category_indexer.get_indices(categories)
         cat_size = cat_indices.size
-
-        # Expand one-hot array if new categories appeared
-        if cat_indices.max() + 1 > var.values.shape[1]:
-            var.set_values(
-                max_iter=self.n_trials, var_type_or_categories=categories
-            )
 
         if trial_id < self.n_init_points or self._force_random:
             category_idx = self._rng.choice(cat_indices)
 
         else:
-            elite_values = var.values[self._elite_indices][:, cat_indices]
-            active_mask = np.any(elite_values, axis=1)
-            active_elite_values = elite_values[active_mask]
+            # Elite frequency + noise + temperature softmax (1D version of original)
+            elite_cats = var.values[self._elite_indices]
+            freq = np.zeros(cat_size, dtype=np.float64)
+            for j, ci in enumerate(cat_indices):
+                freq[j] = np.sum(elite_cats == ci)
 
-            if active_elite_values.size == 0:
-                previous_values = var.values[:trial_id][:, cat_indices]
-                active_previous_values = previous_values[np.any(previous_values, axis=1)]
+            total = freq.sum()
+            if total == 0:
+                category_idx = self._rng.choice(cat_indices)
+            else:
+                elite_mean = freq / total
 
-                if active_previous_values.size == 0:
-                    category_idx = self._rng.choice(cat_indices)
-                else:
-                    active_elite_values = active_previous_values
-                    active_mask = None  # weights not applicable for fallback
-
-            if active_elite_values.size != 0:
-                noise = self._rng.normal(
-                    loc=0.0, scale=self._current_noise, size=cat_size
-                )
-
-                elite_mean = active_elite_values.mean(axis=0)
-
-                chosen_elites_with_noise = elite_mean + noise
-
+                # Gaussian noise + reflect at [0,1]
+                noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
+                noisy = elite_mean + noise
                 while True:
-                    below = chosen_elites_with_noise < 0.0
-                    above = chosen_elites_with_noise > 1.0
+                    below = noisy < 0.0
+                    above = noisy > 1.0
                     if not (np.any(below) or np.any(above)):
                         break
-                    chosen_elites_with_noise = np.where(
-                        below, -chosen_elites_with_noise / 2.0, chosen_elites_with_noise
-                    )
-                    chosen_elites_with_noise = np.where(
-                        above,
-                        1.0 - (chosen_elites_with_noise - 1.0) / 2.0,
-                        chosen_elites_with_noise,
-                    )
+                    noisy = np.where(below, -noisy / 2.0, noisy)
+                    noisy = np.where(above, 1.0 - (noisy - 1.0) / 2.0, noisy)
 
-                exps = np.exp(
-                    (chosen_elites_with_noise - chosen_elites_with_noise.max())
-                    * self._current_cat_temp
-                )
+                # Temperature-scaled softmax
+                temp = self._current_cat_temp if self._current_cat_temp is not None else 1.0
+                exps = np.exp((noisy - noisy.max()) * temp)
                 probs = exps / exps.sum()
 
                 category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
-        result = np.zeros(len(var.category_indexer), dtype=np.float64)
-        result[category_idx] = 1.0
-
-        var.values[trial_id, :] = result
+        var.values[trial_id] = category_idx
 
         return var.category_indexer.get_strings(category_idx)
 
@@ -720,10 +698,10 @@ class Study:
             self._progress = (iteration + 1) / self.n_trials
 
             for var in self._variables.values():
-                if var.values.ndim == 1:
-                    var.values[iteration] = np.nan
+                if var.type is list:
+                    var.values[iteration] = -1
                 else:
-                    var.values[iteration, :] = 0.0
+                    var.values[iteration] = np.nan
 
             if iteration >= self.n_init_points:
                 self._current_n_elites = max(
@@ -947,10 +925,9 @@ class Study:
                     else:
                         variables[var_name] = float(var.values[best_iteration])
             else:
-                if np.any(var.values[best_iteration]):
-                    variables[var_name] = var.category_indexer.get_strings(
-                        np.argmax(var.values[best_iteration])
-                    )
+                cat_idx = int(var.values[best_iteration])
+                if cat_idx >= 0:
+                    variables[var_name] = var.category_indexer.get_strings(cat_idx)
 
         return {
             "iteration": best_iteration + 1,
@@ -1024,10 +1001,10 @@ class Study:
                     if not np.isnan(var_value):
                         trial_dict["variables"][var_name] = float(var_value)
                 else:  # categorical variables
-                    # For categorical variables, check if any value is non-zero
-                    if np.any(var_value):
+                    cat_idx = int(var_value)
+                    if cat_idx >= 0:
                         trial_dict["variables"][var_name] = (
-                            var.category_indexer.get_strings(np.argmax(var_value))
+                            var.category_indexer.get_strings(cat_idx)
                         )
 
             history.append(trial_dict)
