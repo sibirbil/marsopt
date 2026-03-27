@@ -290,7 +290,7 @@ class Study:
         n_init_points: Optional[int] = None,
         final_noise: Optional[float] = None,
         exploration_mode: str = "none",
-        epsilon: float = 1.0,
+        epsilon: Optional[float] = None,
         elite_weighting: str = "random",
         rho: float = 0.5,
         elite_window: Optional[int] = None,
@@ -317,9 +317,10 @@ class Study:
             ``"epsilon"`` enables epsilon-greedy exploration: at each adaptive
             trial, with probability ``epsilon / (t + 1)`` a uniform random
             sample is drawn instead of the elite-guided step.
-        epsilon : float, default = 1.0
+        epsilon : float, default = None
             Exploration constant used when ``exploration_mode="epsilon"``.
-            Controls the rate eps_t = epsilon / (t + 1). Ignored when
+            Controls the rate eps_t = epsilon / (t + 1). If ``None``,
+            auto-scaled as n_trials / 100. Ignored when
             ``exploration_mode="none"``.
         elite_weighting : str, default = "random"
             How a base value is selected from elites. ``"random"`` picks one
@@ -753,6 +754,13 @@ class Study:
         elite_scale: float = 2.0 * math.sqrt(total_trials)
         self._direction_multiplier = 1.0 if self.direction == "minimize" else -1.0
 
+        # Epsilon: auto-scale if None, otherwise use user value
+        if self.exploration_mode == "epsilon":
+            if self.epsilon is None:
+                self._epsilon_effective = total_trials / 100.0
+            else:
+                self._epsilon_effective = self.epsilon
+
         noise_range = self.initial_noise - self.final_noise
 
         # Start from the existing trials count
@@ -811,7 +819,7 @@ class Study:
 
                 # Epsilon-exploration
                 if self.exploration_mode == "epsilon":
-                    eps_t = self.epsilon / (iteration + 1)
+                    eps_t = self._epsilon_effective / (iteration + 1)
                     self._force_random = self._rng.random() < eps_t
                 else:
                     self._force_random = False
@@ -881,7 +889,7 @@ class Study:
         direction: Any,
         verbose: Any,
         exploration_mode: Any = "none",
-        epsilon: Any = 1.0,
+        epsilon: Any = None,
         elite_weighting: Any = "random",
         rho: Any = 0.5,
         elite_window: Any = None,
@@ -896,10 +904,11 @@ class Study:
             )
 
         # epsilon validation
-        if not isinstance(epsilon, (int, float)):
-            raise TypeError(f"epsilon must be a number, got {type(epsilon)}")
-        if epsilon <= 0:
-            raise ValueError(f"epsilon must be positive, got {epsilon}")
+        if epsilon is not None:
+            if not isinstance(epsilon, (int, float)):
+                raise TypeError(f"epsilon must be a number or None, got {type(epsilon)}")
+            if epsilon <= 0:
+                raise ValueError(f"epsilon must be positive, got {epsilon}")
 
         # elite_weighting validation
         if elite_weighting not in ("random", "log_rank", "mixed"):
