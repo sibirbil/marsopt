@@ -289,9 +289,7 @@ class Study:
         direction: str = "minimize",
         n_init_points: Optional[int] = None,
         final_noise: Optional[float] = None,
-        exploration_mode: str = "none",
         epsilon: float = 1.0,
-        elite_weighting: str = "random",
         elite_window: Optional[int] = None,
         random_state: Optional[int] = None,
         verbose: bool = True,
@@ -311,20 +309,10 @@ class Study:
         final_noise : float, default = None
             Final noise level. If `None`, it is set as:
             min(2.0 / `n_trials`, `initial_noise`)
-        exploration_mode : str, default = "none"
-            Global exploration strategy. ``"none"`` disables global exploration.
-            ``"epsilon"`` enables epsilon-greedy exploration: at each adaptive
-            trial, with probability ``epsilon / (t + 1)`` a uniform random
-            sample is drawn instead of the elite-guided step.
         epsilon : float, default = 1.0
-            Exploration constant used when ``exploration_mode="epsilon"``.
-            Controls the rate eps_t = epsilon / (t + 1). Ignored when
-            ``exploration_mode="none"``.
-        elite_weighting : str, default = "random"
-            How a base value is selected from elites. ``"random"`` picks one
-            elite uniformly at random. ``"log_rank"`` computes a weighted mean
-            using CMA-ES-style log-rank weights, giving higher weight to
-            better-ranked elites.
+            Epsilon-greedy exploration constant. At each adaptive trial, with
+            probability ``epsilon / (t + 1)`` a uniform random sample is drawn
+            instead of the elite-guided step (harmonic decay).
         elite_window : int, default = None
             If set, only the most recent ``elite_window`` completed trials are
             considered for elite selection. If ``None``, full history is used.
@@ -341,9 +329,7 @@ class Study:
             initial_noise=initial_noise,
             direction=direction,
             verbose=verbose,
-            exploration_mode=exploration_mode,
             epsilon=epsilon,
-            elite_weighting=elite_weighting,
             elite_window=elite_window,
         )
 
@@ -352,9 +338,7 @@ class Study:
         self.verbose = verbose
         self.direction = direction
         self.final_noise = final_noise
-        self.exploration_mode = exploration_mode
         self.epsilon = epsilon
-        self.elite_weighting = elite_weighting
         self.elite_window = elite_window
 
         self._rng = np.random.RandomState(random_state)
@@ -370,7 +354,6 @@ class Study:
         self._current_cat_temp: float = None
         self._direction_multiplier: float = None
         self._elite_indices: NDArray[np.int64] = None
-        self._elite_weights: NDArray[np.float64] = None
         self._force_random: bool = False
         self._logger = OptimizationLogger() if verbose else None
 
@@ -441,13 +424,7 @@ class Study:
             in_bounds = (elite_var >= low) & (elite_var <= high)
 
             if np.any(in_bounds):
-                if self._elite_weights is not None:
-                    # log_rank: weighted mean of in-bounds elites
-                    w = self._elite_weights[in_bounds]
-                    w = w / w.sum()
-                    base_value = np.dot(w, elite_var[in_bounds])
-                else:
-                    base_value = self._rng.choice(elite_var[in_bounds])
+                base_value = self._rng.choice(elite_var[in_bounds])
             else:
                 range_mask = (var_values >= low) & (var_values <= high)
                 n_in_bounds = int(range_mask.sum())
@@ -564,12 +541,7 @@ class Study:
                     loc=0.0, scale=self._current_noise, size=cat_size
                 )
 
-                if self._elite_weights is not None and active_mask is not None:
-                    w = self._elite_weights[active_mask]
-                    w = w / w.sum()
-                    elite_mean = np.average(active_elite_values, axis=0, weights=w)
-                else:
-                    elite_mean = active_elite_values.mean(axis=0)
+                elite_mean = active_elite_values.mean(axis=0)
 
                 chosen_elites_with_noise = elite_mean + noise
 
@@ -782,26 +754,9 @@ class Study:
                     local_idx = np.argpartition(obj_scaled, k - 1)[:k]
                     self._elite_indices = local_idx + window_start
 
-                # Compute elite weights
-                if self.elite_weighting == "log_rank" and k > 1:
-                    elite_obj = (
-                        self._direction_multiplier
-                        * self._objective_values[self._elite_indices]
-                    )
-                    rank_order = np.argsort(elite_obj)
-                    w = np.log(k + 0.5) - np.log(np.arange(1, k + 1))
-                    w /= w.sum()
-                    self._elite_weights = w
-                    self._elite_indices = self._elite_indices[rank_order]
-                else:
-                    self._elite_weights = None
-
-                # Epsilon-exploration
-                if self.exploration_mode == "epsilon":
-                    eps_t = self.epsilon / (iteration + 1)
-                    self._force_random = self._rng.random() < eps_t
-                else:
-                    self._force_random = False
+                # Epsilon-exploration: eps_t = epsilon / (t+1), harmonic decay
+                eps_t = self.epsilon / (iteration + 1)
+                self._force_random = self._rng.random() < eps_t
             else:
                 self._force_random = False
 
@@ -852,31 +807,17 @@ class Study:
         final_noise: Any,
         direction: Any,
         verbose: Any,
-        exploration_mode: Any = "none",
         epsilon: Any = 1.0,
-        elite_weighting: Any = "random",
         elite_window: Any = None,
     ) -> None:
         """
         Validates initialization variables for Study.
         """
-        # exploration_mode validation
-        if exploration_mode not in ("none", "epsilon"):
-            raise ValueError(
-                f"exploration_mode must be 'none' or 'epsilon', got '{exploration_mode}'"
-            )
-
         # epsilon validation
         if not isinstance(epsilon, (int, float)):
             raise TypeError(f"epsilon must be a number, got {type(epsilon)}")
         if epsilon <= 0:
             raise ValueError(f"epsilon must be positive, got {epsilon}")
-
-        # elite_weighting validation
-        if elite_weighting not in ("random", "log_rank"):
-            raise ValueError(
-                f"elite_weighting must be 'random' or 'log_rank', got '{elite_weighting}'"
-            )
 
         # elite_window validation
         if elite_window is not None:
