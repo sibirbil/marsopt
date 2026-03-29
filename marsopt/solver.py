@@ -414,9 +414,49 @@ class Study:
                 )
 
         trial_id = self._current_trial.trial_id
+        n_values = (high - low + 1) if var_type is int else 0
+        small_int = var_type is int and not log and n_values <= 20
 
         if trial_id < self.n_init_points or self._force_random:
-            value = self._sample_value(low, high, log)
+            if small_int:
+                one_hot = self._rng.uniform(0.0, 1.0, size=n_values)
+                value = low + int(np.argmax(one_hot))
+            else:
+                value = self._sample_value(low, high, log)
+
+        elif small_int:
+            # Ordinal-aware discrete sampler for small integer ranges
+            # 1. Build elite histogram
+            elite_var = var.values[self._elite_indices]
+            hist = np.zeros(n_values, dtype=np.float64)
+            for v in elite_var:
+                if np.isnan(v):
+                    continue
+                i = int(v) - low
+                if 0 <= i < n_values:
+                    hist[i] += 1.0
+
+            if hist.sum() == 0:
+                one_hot = self._rng.uniform(0.0, 1.0, size=n_values)
+                value = low + int(np.argmax(one_hot))
+            else:
+                # 2. Smooth with truncated discrete Gaussian kernel (r=2)
+                # sigma in step units: high early → low late
+                sigma_t = 0.35 + 0.65 * (1.0 - self._progress)  # 1.0 → 0.35
+                r = 2
+                scores = np.zeros(n_values, dtype=np.float64)
+                for j in range(n_values):
+                    if hist[j] == 0:
+                        continue
+                    lo_k = max(0, j - r)
+                    hi_k = min(n_values, j + r + 1)
+                    for k in range(lo_k, hi_k):
+                        d = abs(k - j)
+                        scores[k] += hist[j] * np.exp(-0.5 * (d / sigma_t) ** 2)
+
+                # 3. Normalize to probability and sample
+                scores /= scores.sum()
+                value = low + int(self._rng.choice(n_values, p=scores))
 
         else:
             var_values = var.values[:trial_id]
@@ -471,7 +511,7 @@ class Study:
 
                 value = self._reflect_at_boundaries(base_value + noise, low, high)
 
-        if var_type is int:
+        if var_type is int and not small_int:
             value = int(value) + int((self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
 
         var.values[self._current_trial.trial_id] = value
@@ -510,7 +550,6 @@ class Study:
                     f"Variable '{name}' has already been registered with type {var.type}, "
                     f"but an attempt was made to register it as type {type(categories)}. Ensure consistency."
                 )
-            var.category_indexer.get_indices(categories)
 
         cat_indices = var.category_indexer.get_indices(categories)
         cat_size = cat_indices.size
@@ -523,14 +562,17 @@ class Study:
         else:
             # Diversity-aware parabolic exploration
             # When elites are dominated by one branch, explore more
-            elite_cats_check = var.values[self._elite_indices]
-            # Only count categories in the current active set
-            active_mask = np.isin(elite_cats_check, cat_indices)
-            n_active = int(active_mask.sum())
-            if n_active > 0:
-                active_elite = elite_cats_check[active_mask]
-                _, counts = np.unique(active_elite, return_counts=True)
-                dominance = counts.max() / n_active
+            elite_cats = var.values[self._elite_indices]
+            valid_elite = elite_cats[elite_cats >= 0]
+            freq = np.zeros(cat_size, dtype=np.float64)
+            total = 0.0
+            if valid_elite.size > 0:
+                counts = np.bincount(valid_elite, minlength=int(cat_indices.max()) + 1)
+                freq = counts[cat_indices].astype(np.float64, copy=False)
+                total = float(freq.sum())
+
+            if total > 0.0:
+                dominance = float(freq.max()) / total
             else:
                 dominance = 0.5
             div_factor = max(0.0, (dominance - 1.0 / cat_size)) / (1.0 - 1.0 / cat_size + 1e-10)
@@ -543,13 +585,7 @@ class Study:
                 category_idx = cat_indices[np.argmax(one_hot)]
             else:
                 # Exploit: elite frequency + noise + temperature softmax
-                elite_cats = var.values[self._elite_indices]
-                freq = np.zeros(cat_size, dtype=np.float64)
-                for j, ci in enumerate(cat_indices):
-                    freq[j] = np.sum(elite_cats == ci)
-
-                total = freq.sum()
-                if total == 0:
+                if total == 0.0:
                     one_hot = self._rng.uniform(0.0, 1.0, size=cat_size)
                     category_idx = cat_indices[np.argmax(one_hot)]
                     var.values[trial_id] = category_idx
