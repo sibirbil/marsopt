@@ -521,36 +521,45 @@ class Study:
             category_idx = cat_indices[np.argmax(one_hot)]
 
         else:
-            # Elite frequency + noise + temperature softmax
-            elite_cats = var.values[self._elite_indices]
-            freq = np.zeros(cat_size, dtype=np.float64)
-            for j, ci in enumerate(cat_indices):
-                freq[j] = np.sum(elite_cats == ci)
+            # Parabolic exploration: (1/K) * 4*p*(1-p), peaks at mid-optimization
+            explore_prob = (1.0 / cat_size) * 4.0 * self._progress * (1.0 - self._progress)
 
-            total = freq.sum()
-            if total == 0:
-                category_idx = self._rng.choice(cat_indices)
-                var.values[trial_id] = category_idx
-                return var.category_indexer.get_strings(category_idx)
-            elite_mean = freq / total
+            if self._rng.random() < explore_prob:
+                # Explore: uniform random (one-hot to match RNG consumption)
+                one_hot = self._rng.uniform(0.0, 1.0, size=cat_size)
+                category_idx = cat_indices[np.argmax(one_hot)]
+            else:
+                # Exploit: elite frequency + noise + temperature softmax
+                elite_cats = var.values[self._elite_indices]
+                freq = np.zeros(cat_size, dtype=np.float64)
+                for j, ci in enumerate(cat_indices):
+                    freq[j] = np.sum(elite_cats == ci)
 
-            # Gaussian noise + reflect at [0,1]
-            noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
-            noisy = elite_mean + noise
-            while True:
-                below = noisy < 0.0
-                above = noisy > 1.0
-                if not (np.any(below) or np.any(above)):
-                    break
-                noisy = np.where(below, -noisy / 2.0, noisy)
-                noisy = np.where(above, 1.0 - (noisy - 1.0) / 2.0, noisy)
+                total = freq.sum()
+                if total == 0:
+                    one_hot = self._rng.uniform(0.0, 1.0, size=cat_size)
+                    category_idx = cat_indices[np.argmax(one_hot)]
+                    var.values[trial_id] = category_idx
+                    return var.category_indexer.get_strings(category_idx)
+                elite_mean = freq / total
 
-            # Temperature-scaled softmax
-            temp = self._current_cat_temp if self._current_cat_temp is not None else 1.0
-            exps = np.exp((noisy - noisy.max()) * temp)
-            probs = exps / exps.sum()
+                # Gaussian noise + reflect at [0,1]
+                noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
+                noisy = elite_mean + noise
+                while True:
+                    below = noisy < 0.0
+                    above = noisy > 1.0
+                    if not (np.any(below) or np.any(above)):
+                        break
+                    noisy = np.where(below, -noisy / 2.0, noisy)
+                    noisy = np.where(above, 1.0 - (noisy - 1.0) / 2.0, noisy)
 
-            category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
+                # Temperature-scaled softmax
+                temp = self._current_cat_temp if self._current_cat_temp is not None else 1.0
+                exps = np.exp((noisy - noisy.max()) * temp)
+                probs = exps / exps.sum()
+
+                category_idx = cat_indices[self._rng.choice(cat_size, p=probs)]
 
         var.values[trial_id] = category_idx
 
