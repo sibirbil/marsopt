@@ -440,19 +440,19 @@ class Study:
                 one_hot = self._rng.uniform(0.0, 1.0, size=n_values)
                 value = low + int(np.argmax(one_hot))
             else:
-                # 2. Smooth with truncated discrete Gaussian kernel (r=2)
-                # sigma in step units: high early → low late
-                sigma_t = 0.35 + 0.65 * (1.0 - self._progress)  # 1.0 → 0.35
-                r = 2
+                # 2. Full-range discrete Gaussian smoothing
+                # sigma in step units: anneals from ~1.0 to ~0.35
+                sigma_t = 0.35 + 0.65 * (1.0 - self._progress)
+                grid = np.arange(n_values, dtype=np.float64)
+
+                # Per-center normalized kernel: each elite spreads unit mass
                 scores = np.zeros(n_values, dtype=np.float64)
                 for j in range(n_values):
                     if hist[j] == 0:
                         continue
-                    lo_k = max(0, j - r)
-                    hi_k = min(n_values, j + r + 1)
-                    for k in range(lo_k, hi_k):
-                        d = abs(k - j)
-                        scores[k] += hist[j] * np.exp(-0.5 * (d / sigma_t) ** 2)
+                    kernel = np.exp(-0.5 * ((grid - j) / sigma_t) ** 2)
+                    kernel /= kernel.sum()  # normalize per center
+                    scores += hist[j] * kernel
 
                 # 3. Normalize to probability and sample
                 scores /= scores.sum()
