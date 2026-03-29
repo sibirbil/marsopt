@@ -454,8 +454,9 @@ class Study:
                     kernel /= kernel.sum()  # normalize per center
                     scores += hist[j] * kernel
 
-                # 3. Normalize to probability and sample
-                scores /= scores.sum()
+                # 3. Uniform floor + normalize and sample
+                floor = (1.0 / n_values) * self._current_noise
+                scores = (1.0 - floor) * (scores / scores.sum()) + floor / n_values
                 value = low + int(self._rng.choice(n_values, p=scores))
 
         else:
