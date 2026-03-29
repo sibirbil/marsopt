@@ -420,6 +420,7 @@ class Study:
 
         else:
             var_values = var.values[:trial_id]
+
             elite_var = var_values[self._elite_indices]
             in_bounds = (elite_var >= low) & (elite_var <= high)
 
@@ -515,7 +516,9 @@ class Study:
         cat_size = cat_indices.size
 
         if trial_id < self.n_init_points or self._force_random:
-            category_idx = self._rng.choice(cat_indices)
+            # One-hot uniform sampling (matches Optuna's RNG consumption)
+            one_hot = self._rng.uniform(0.0, 1.0, size=cat_size)
+            category_idx = cat_indices[np.argmax(one_hot)]
 
         else:
             # Elite frequency + noise + temperature softmax
