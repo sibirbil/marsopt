@@ -355,6 +355,8 @@ class Study:
         self._direction_multiplier: float = None
         self._elite_indices: NDArray[np.int64] = None
         self._force_random: bool = False
+        self._evo_path: Dict[str, float] = {}
+        self._best_ever_idx: Optional[int] = None
         self._logger = OptimizationLogger() if verbose else None
 
     def __repr__(self) -> str:
@@ -416,11 +418,14 @@ class Study:
         trial_id = self._current_trial.trial_id
         n_values = (high - low + 1) if var_type is int else 0
         small_int = var_type is int and not log and n_values <= 20
+        medium_int = False
 
         if trial_id < self.n_init_points or self._force_random:
             if small_int:
                 one_hot = self._rng.uniform(0.0, 1.0, size=n_values)
                 value = low + int(np.argmax(one_hot))
+            elif medium_int:
+                value = low + int(self._rng.randint(0, n_values))
             else:
                 value = self._sample_value(low, high, log)
 
@@ -459,6 +464,26 @@ class Study:
                 scores = (1.0 - floor) * (scores / scores.sum()) + floor / n_values
                 value = low + int(self._rng.choice(n_values, p=scores))
 
+        elif medium_int:
+            # Medium discrete int: elite-based step noise, no rounding
+            elite_var = var.values[self._elite_indices]
+            valid = np.array([int(v) for v in elite_var if not np.isnan(v) and low <= v <= high])
+
+            if len(valid) == 0:
+                value = low + int(self._rng.randint(0, n_values))
+            else:
+                base_value = int(self._rng.choice(valid))
+                # Step noise: sigma in steps, not range
+                sigma_steps = self._current_noise * np.sqrt(n_values)
+                delta = int(round(self._rng.normal(0.0, sigma_steps)))
+                value = base_value + delta
+                # Reflect at boundaries
+                while value < low or value > high:
+                    if value < low:
+                        value = low + (low - value)
+                    if value > high:
+                        value = high - (value - high)
+
         else:
             var_values = var.values[:trial_id]
 
@@ -491,6 +516,9 @@ class Study:
                     top_k = np.argpartition(masked_obj, n_elites - 1)[:n_elites]
                     base_value = self._rng.choice(masked_var[top_k])
 
+            # Evolution path: additive drift in improvement direction
+            drift = 0.1 * self._evo_path.get(name, 0.0) * (1.0 - self._progress)
+
             if log:
                 log_base = np.log(base_value)
                 log_high = np.log(high)
@@ -501,7 +529,7 @@ class Study:
                 )
 
                 value = np.exp(
-                    self._reflect_at_boundaries(log_base + noise, log_low, log_high)
+                    self._reflect_at_boundaries(log_base + noise + drift, log_low, log_high)
                 )
 
             else:
@@ -510,9 +538,9 @@ class Study:
                     loc=0.0, scale=self._current_noise * var_range
                 )
 
-                value = self._reflect_at_boundaries(base_value + noise, low, high)
+                value = self._reflect_at_boundaries(base_value + noise + drift, low, high)
 
-        if var_type is int and not small_int:
+        if var_type is int and not small_int and not medium_int:
             value = int(value) + int((self._rng.random() < abs(value - int(value))) * (1 if value > 0 else -1))
 
         var.values[self._current_trial.trial_id] = value
@@ -822,14 +850,30 @@ class Study:
             self._objective_values[iteration] = obj_value
             self._trials.append(trial)
 
-            # Update best value based on optimization direction
-            if self.verbose:
-                if (self.direction == "minimize" and obj_value < best_value) or (
-                    self.direction == "maximize" and obj_value > best_value
-                ):
-                    best_value = obj_value
-                    best_iteration = iteration
+            # Update best + evolution path
+            is_new_best = (
+                (self.direction == "minimize" and obj_value < best_value) or
+                (self.direction == "maximize" and obj_value > best_value)
+            )
+            if is_new_best:
+                old_best_idx = self._best_ever_idx
+                best_value = obj_value
+                best_iteration = iteration
+                self._best_ever_idx = iteration
 
+                # Evolution path: update direction
+                if old_best_idx is not None:
+                    for var_name, var in self._variables.items():
+                        if var.type is not float:
+                            continue
+                        old_val = var.values[old_best_idx]
+                        new_val = var.values[iteration]
+                        if np.isnan(old_val) or np.isnan(new_val):
+                            continue
+                        prev = self._evo_path.get(var_name, 0.0)
+                        self._evo_path[var_name] = 0.8 * prev + 0.2 * (new_val - old_val)
+
+            if self.verbose:
                 self._logger.log_trial(
                     iteration=iteration + 1,
                     variables=trial.variables,
