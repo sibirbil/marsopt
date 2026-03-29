@@ -521,8 +521,21 @@ class Study:
             category_idx = cat_indices[np.argmax(one_hot)]
 
         else:
-            # Parabolic exploration: (1/K) * 4*p*(1-p), peaks at mid-optimization
-            explore_prob = (1.0 / cat_size) * 4.0 * self._progress * (1.0 - self._progress)
+            # Diversity-aware parabolic exploration
+            # When elites are dominated by one branch, explore more
+            elite_cats_check = var.values[self._elite_indices]
+            # Only count categories in the current active set
+            active_mask = np.isin(elite_cats_check, cat_indices)
+            n_active = int(active_mask.sum())
+            if n_active > 0:
+                active_elite = elite_cats_check[active_mask]
+                _, counts = np.unique(active_elite, return_counts=True)
+                dominance = counts.max() / n_active
+            else:
+                dominance = 0.5
+            div_factor = max(0.0, (dominance - 1.0 / cat_size)) / (1.0 - 1.0 / cat_size + 1e-10)
+            p = self._progress
+            explore_prob = (1.0 / cat_size) * div_factor * 4.0 * p * (1.0 - p)
 
             if self._rng.random() < explore_prob:
                 # Explore: uniform random (one-hot to match RNG consumption)
@@ -543,7 +556,7 @@ class Study:
                     return var.category_indexer.get_strings(category_idx)
                 elite_mean = freq / total
 
-                # Gaussian noise + reflect at [0,1]
+                # Gaussian noise + damped reflect at [0,1]
                 noise = self._rng.normal(loc=0.0, scale=self._current_noise, size=cat_size)
                 noisy = elite_mean + noise
                 while True:
