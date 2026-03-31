@@ -57,11 +57,13 @@ The corresponding plot shows that the number of elites starts near 1, rises in t
 
 ## 3. Noise Scheduling with Cosine Annealing
 
-Let $\eta_{\text{init}}$ denote the initial noise level. If the user does not provide a final noise level explicitly, the implementation uses
+Let $\eta_{\text{init}}$ denote the initial noise level (default $0.33$). If the user does not provide a final noise level explicitly, the implementation uses
 
 $$
-\eta_{\text{final}} = \min\left(\frac{2}{N}, \eta_{\text{init}}\right).
+\eta_{\text{final}} = \max\!\left(10^{-7},\;\min\!\left(\frac{1}{N}, \eta_{\text{init}}\right)\right).
 $$
+
+The additional lower bound of $10^{-7}$ prevents the final noise from collapsing to zero for very large budgets, ensuring that late-stage perturbations remain numerically meaningful.
 
 Define the cosine annealing factor
 
@@ -131,9 +133,78 @@ After the initial phase:
 
    This step is repeated until the value falls in range. The important practical property is that the overshoot is reduced geometrically, so large violations are pulled back quickly without introducing a hard clip.
 
-### 4.3. Integer Variables and Stochastic Rounding
+### 4.3. Evolution Path
 
-Integer variables are first sampled by the same mechanism as continuous variables and then converted to integers by **stochastic rounding**. If $v$ is the real-valued proposal and $\mathrm{trunc}(v)$ denotes truncation toward zero, define
+MARS maintains an **evolution path** for each continuous variable. When a new global best trial is found, the displacement between the old best and the new best is recorded:
+
+$$
+\mathbf{d}_{\text{new}} = x_{\text{new\,best}} - x_{\text{old\,best}}.
+$$
+
+The evolution path is updated with exponential smoothing:
+
+$$
+\mathbf{p} \leftarrow 0.8\,\mathbf{p} + 0.2\,\mathbf{d}_{\text{new}}.
+$$
+
+During adaptive sampling, a small **drift** term is added to the perturbation:
+
+$$
+\text{drift} = 0.1 \cdot \mathbf{p} \cdot (1 - p_t),
+$$
+
+where $p_t$ is the progress ratio. This biases new proposals in the direction of recent improvement. The $(1 - p_t)$ factor fades the drift toward the end of the run so that late-stage refinement is not biased by early directional signal.
+
+### 4.4. Small Integer Variables — Ordinal-Aware Discrete Sampler
+
+For integer variables with a **small range** ($\le 20$ distinct values), MARS uses a dedicated ordinal-aware sampling mechanism instead of the continuous-then-round approach.
+
+#### Initial Phase
+
+During the initial random phase, a uniform one-hot vector of size $n_{\text{values}} = \text{high} - \text{low} + 1$ is generated and the argmax is taken, producing a uniformly random integer in $[\text{low}, \text{high}]$.
+
+#### Adaptive Phase
+
+1. **Build an elite histogram.**
+   For each elite trial, record which integer value was chosen. This gives a count vector $\mathbf{h} \in \mathbb{R}^{n_{\text{values}}}$.
+
+2. **Discrete Gaussian smoothing.**
+   Define an annealing kernel width in step units:
+
+   $$
+   \sigma_t = 0.35 + 0.65\,(1 - p_t).
+   $$
+
+   For each bin $j$ with $h_j > 0$, a normalized Gaussian kernel centered at $j$ is computed over the full grid:
+
+   $$
+   K_j(i) = \frac{\exp\!\bigl(-\tfrac{1}{2}\bigl(\tfrac{i-j}{\sigma_t}\bigr)^2\bigr)}
+   {\sum_{r=0}^{n_{\text{values}}-1} \exp\!\bigl(-\tfrac{1}{2}\bigl(\tfrac{r-j}{\sigma_t}\bigr)^2\bigr)},
+   $$
+
+   and the score vector is
+
+   $$
+   s_i = \sum_{j=0}^{n_{\text{values}}-1} h_j \, K_j(i).
+   $$
+
+   This spreads elite mass to neighboring integer values **in an ordinal-aware way**: values close to an elite value receive more mass than distant ones.
+
+3. **Uniform floor and sampling.**
+   A noise-dependent uniform floor is mixed in:
+
+   $$
+   \pi_i = (1 - \alpha)\,\frac{s_i}{\sum_r s_r} + \frac{\alpha}{n_{\text{values}}},
+   \quad \alpha = \frac{\eta(t)}{n_{\text{values}}}.
+   $$
+
+   The final value is drawn from this discrete distribution.
+
+This sampler avoids the systematic rounding bias of the continuous-then-round approach and respects the ordinal structure of integer variables (nearby values are preferred over distant ones), unlike a purely categorical treatment.
+
+### 4.5. Large Integer Variables and Stochastic Rounding
+
+For integer variables with **more than 20 distinct values**, the continuous perturbation mechanism from Section 4.2 is used, followed by **stochastic rounding**. If $v$ is the real-valued proposal and $\mathrm{trunc}(v)$ denotes truncation toward zero, define
 
 $$
 f = |v - \mathrm{trunc}(v)|.
@@ -154,46 +225,73 @@ So the integer mutation rule preserves the center of the underlying continuous p
 
 ## 5. Categorical Variables
 
-Categorical variables are stored internally as one-hot vectors. If a categorical variable can take one of $k$ categories, each observed value is represented as a vector in $\mathbb{R}^k$ with exactly one entry equal to 1.
+Categorical variables are stored internally as **integer indices**: if a categorical variable can take one of $k$ categories, each observed value is stored as an integer in $\{0, 1, \dots, k-1\}$ (with $-1$ indicating an unset value). This is more memory-efficient than the previous one-hot representation and simplifies frequency counting.
 
-### 5.1. Averaging Elite One-Hot Vectors
+### 5.1. Elite Frequency Vector
 
-For the categories currently available in the trial, MARS extracts the corresponding one-hot coordinates from elite trials and averages them:
-
-$$
-\overline{\mathbf{v}}
-=
-\frac{1}{m}
-\sum_{i=1}^{m} \mathbf{v}_i,
-$$
-
-where $m$ is the number of elite rows that are active for the current categorical choice set. In other words, inactive rows are not treated as evidence for any category.
-
-The vector $\overline{\mathbf{v}}$ can be interpreted as an empirical summary of how often each currently available category appeared among strong past trials.
-
-### 5.2. Noise and Reflection
-
-Gaussian noise is added coordinate-wise:
+For the categories currently available in the trial, MARS counts how often each category appears among the elite trials:
 
 $$
-\mathbf{m} = \overline{\mathbf{v}} + \mathbf{z},
-\quad
-\mathbf{z} \sim \mathcal{N}(0, \eta(t) I).
+f_j = \#\{i \in \text{elites} : \text{category}_i = j\}, \quad j = 1, \dots, k.
 $$
 
-Each coordinate is then reflected back into $[0,1]$ using the same dampened reflection rule as in the numerical case.
+The normalized frequency vector is
 
-### 5.3. Softmax Sharpness Schedule
+$$
+\overline{\mathbf{f}} = \frac{1}{\sum_r f_r} \mathbf{f}.
+$$
 
-The implementation does **not** use a conventional decreasing temperature directly. Instead, it uses the reciprocal quantity
+This can be interpreted as an empirical summary of how often each currently available category appeared among strong past trials.
+
+### 5.2. Diversity-Aware Parabolic Exploration
+
+Before the main exploit step, MARS checks whether the elite set is **dominated** by a single category. Define
+
+$$
+\text{dominance} = \frac{\max_j f_j}{\sum_r f_r},
+$$
+
+and a normalized diversity factor
+
+$$
+d = \frac{\text{dominance} - 1/k}{1 - 1/k}.
+$$
+
+The probability of taking a purely exploratory (uniform random) step is
+
+$$
+p_{\text{explore}} = \frac{d}{k} \cdot 4\,p_t(1 - p_t).
+$$
+
+The parabolic term $4\,p_t(1 - p_t)$ peaks at mid-run and vanishes at the boundaries, so:
+
+- early on, exploration is driven by the initial random phase, not this mechanism;
+- mid-run, if elites are concentrated on one category, exploration is boosted;
+- late in the run, the term fades regardless of diversity.
+
+This prevents premature categorical lock-in without wasting budget on uniform exploration when the elite distribution is already diverse or when refinement is more valuable.
+
+### 5.3. Noise, Reflection, and Softmax Sampling
+
+When the explore coin does not fire, MARS uses the elite frequency vector with noise and temperature-scaled softmax:
+
+1. **Gaussian noise** is added coordinate-wise:
+
+   $$
+   \mathbf{m} = \overline{\mathbf{f}} + \mathbf{z},
+   \quad
+   \mathbf{z} \sim \mathcal{N}(0, \eta(t) I).
+   $$
+
+2. Each coordinate is **reflected** back into $[0,1]$ using the same dampened reflection rule as in the numerical case.
+
+3. **Temperature-scaled softmax** converts the noisy vector to sampling probabilities:
 
 $$
 \beta_{\text{cat}}(t)
 =
 \frac{1}{0.1 + 0.9\,\mathrm{cos\_anneal}(t)}.
 $$
-
-This quantity acts as a **softmax sharpness** or **inverse temperature**. The sampling probabilities are
 
 $$
 \pi_j
@@ -282,22 +380,41 @@ The dampened reflection rule can be interpreted as a stable alternative to hard 
 
 The implementation therefore behaves like a repeated contraction on the **overshoot amount**, which is enough to explain why out-of-range proposals return to the feasible interval quickly. That observation is the practically relevant point; stronger fixed-point claims are unnecessary here.
 
-### 7.5. Stochastic Rounding
+### 7.5. Evolution Path
 
-The most defensible theoretical property of the integer rule is its unbiasedness:
+The evolution path can be interpreted as a lightweight **cumulative step-size adaptation** mechanism, related in spirit to the path-length control used in CMA-ES. The key differences are:
+
+- MARS tracks only the direction of improvement between successive global bests, not the full mutation distribution;
+- the drift decays with progress, acting as a soft momentum that fades into pure local refinement.
+
+This provides a directional bias when the objective has a consistent gradient-like structure, without adding significant computational overhead.
+
+### 7.6. Ordinal-Aware Integer Sampling
+
+The small-integer sampler can be seen as a **kernel density estimate** on a discrete grid:
+
+- each elite value places a normalized Gaussian kernel on the integer lattice;
+- the kernel width $\sigma_t$ anneals from broad (exploratory) to narrow (exploitative);
+- the uniform floor prevents starvation of any integer value.
+
+This respects the ordinal structure of integers (nearby values are more similar) while avoiding the rounding artifacts of the continuous-then-round approach. For large integer ranges, stochastic rounding remains the practical choice since the kernel approach would be unnecessarily expensive.
+
+### 7.7. Stochastic Rounding
+
+The most defensible theoretical property of the integer rule (used for large integer ranges) is its unbiasedness:
 
 - deterministic rounding shifts the center of the proposal distribution;
 - stochastic rounding preserves it in expectation.
 
 That makes the integer sampler a natural extension of the numerical mutation rule rather than a separate ad hoc mechanism.
 
-### 7.6. Categorical Softmax
+### 7.8. Categorical Sampling with Diversity-Aware Exploration
 
-The categorical update can be interpreted as a noisy preference model over currently available categories:
+The categorical update combines two complementary mechanisms:
 
-- the elite mean vector provides empirical preference information,
-- Gaussian perturbation prevents rigid reuse of the current modal category,
-- the increasing softmax sharpness gradually reduces entropy over time.
+- **Diversity-aware exploration**: the parabolic exploration probability acts as an automatic correction for elite concentration. When elites are dominated by one category, the algorithm injects more uniform exploration mid-run. The parabolic schedule $4\,p_t(1-p_t)$ ensures this correction is strongest when it matters most and does not interfere with early random exploration or late refinement.
+
+- **Elite frequency softmax**: the exploit branch uses elite frequencies (rather than one-hot averages) as the base signal. This is a more direct representation of categorical preference and pairs naturally with the temperature-scaled softmax. As before, Gaussian perturbation prevents rigid reuse of the modal category, and the increasing softmax sharpness gradually reduces entropy over time.
 
 This is closely related in spirit to Boltzmann sampling and annealing-style control of randomness. The analogy is useful, but it should be read as a descriptive connection rather than as a proof that MARS inherits simulated-annealing convergence guarantees.
 
