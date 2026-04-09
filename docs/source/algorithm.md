@@ -234,10 +234,21 @@ At an adaptive trial, MARS forms a **candidate pool** for categorical scoring:
 - if `elite_window=None`, the pool is the full completed history;
 - otherwise, the pool is restricted to the most recent `elite_window` completed trials.
 
-Within that pool, the current elite schedule determines the **good set**
+Within that pool, the current elite schedule determines a baseline elite count $n_{\text{elite}}(t)$. For categorical variables, MARS uses a slightly stabilized good-set size
 
 $$
-\mathcal{G}_t = \text{top } n_{\text{elite}}(t) \text{ trials in the pool},
+n_{\text{good}}(t)
+=
+\min\!\left(
+|\text{pool}|,
+\max\!\left(n_{\text{elite}}(t),\, 2 + \mathrm{round}(3p_t^2)\right)
+\right).
+$$
+
+The **good set** is then
+
+$$
+\mathcal{G}_t = \text{top } n_{\text{good}}(t) \text{ trials in the pool},
 $$
 
 and the **bad set** is the remainder of the same pool:
@@ -253,7 +264,7 @@ This keeps categorical sampling aligned with the same elite schedule and recency
 For each category $j$, MARS accumulates separate statistics over the good and bad sets. The good set is rank-weighted so that stronger elites contribute more:
 
 $$
-w_i = \log(n_{\text{elite}}(t)+1) - \log(i+1), \quad i=1,\dots,n_{\text{elite}}(t).
+w_i = \log(n_{\text{good}}(t)+1) - \log(i+1), \quad i=1,\dots,n_{\text{good}}(t).
 $$
 
 The resulting summaries are
@@ -298,6 +309,41 @@ $$
 $$
 
 This creates a lightweight TPE-style contrast: categories overrepresented among strong recent trials and underrepresented among weaker trials receive higher probability.
+
+### 5.4. Confidence-Aware Parent Reuse
+
+After the categorical probabilities $\pi_j$ are computed, MARS may directly keep the parent elite category rather than resampling. This reuse is **not** unconditional.
+
+Let
+
+- $p_{\max}$ be the largest categorical probability,
+- $p_{\text{2nd}}$ be the second-largest probability,
+- $k$ be the number of currently available categories,
+- $p_{\text{unif}} = 1/k$ be the uniform baseline.
+
+If the parent category is not the top-probability category, MARS does not copy it. Otherwise, it computes
+
+$$
+\text{excess} = \max\!\left(0, \frac{p_{\max} - p_{\text{unif}}}{1 - p_{\text{unif}}}\right),
+$$
+
+$$
+\text{margin} = \frac{p_{\max} - p_{\text{2nd}}}{p_{\max}},
+$$
+
+and the confidence score
+
+$$
+\text{confidence} = \sqrt{\text{excess} \cdot \text{margin}}.
+$$
+
+If $\mu_t$ denotes the categorical mutation probability induced by the current noise level, then the parent-copy probability is
+
+$$
+p_{\text{copy}} = (1 - \mu_t)\,\text{confidence}.
+$$
+
+This makes parent inheritance strong only when the parent category is both clearly better than the alternatives and meaningfully above the uniform baseline.
 
 ## 6. Iterative Procedure
 
@@ -394,9 +440,11 @@ That makes the integer sampler a natural extension of the numerical mutation rul
 
 The categorical update combines two complementary mechanisms:
 
-- **Good/bad contrast**: the exploit branch compares how strongly each category appears in the current elite set versus the rest of the active pool. The log-ratio $\log p^{\text{good}} - \log p^{\text{bad}}$ favors categories that separate strong trials from weak ones.
+- **Good/bad contrast**: the exploit branch compares how strongly each category appears in the current good set versus the rest of the active pool. The log-ratio $\log p^{\text{good}} - \log p^{\text{bad}}$ favors categories that separate strong trials from weak ones.
 
-- **Rank-weighted reuse of elites**: within the good set, better elites contribute more than borderline elites. In addition, the implementation may directly keep the parent elite category when mutation does not fire, preserving useful local structure across mixed-variable proposals.
+- **Rank-weighted good set with a stabilized floor**: categorical decisions are made from a slightly larger top-ranked set than the raw elite schedule would sometimes provide. This reduces brittleness when the generic elite count becomes too small for reliable categorical evidence.
+
+- **Confidence-aware parent reuse**: the implementation may directly keep the parent elite category, but only when that category is already the top-probability option and its advantage over both the uniform baseline and the second-best category is strong enough. This preserves local structure without forcing premature categorical lock-in.
 
 This is closely related in spirit to TPE-style density-ratio reasoning, but it should be interpreted as a practical heuristic layered on top of the existing elite-based search rather than as a full Parzen-estimator model.
 
