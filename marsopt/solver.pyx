@@ -21,10 +21,10 @@ cnp.import_array()
 
 ctypedef struct bitgen_t:
     void *state
-    cnp.uint64_t (*next_uint64)(void *state) nogil
-    cnp.uint32_t (*next_uint32)(void *state) nogil
-    double (*next_double)(void *state) nogil
-    cnp.uint64_t (*next_raw)(void *state) nogil
+    cnp.uint64_t (*next_uint64)(void *state) noexcept nogil
+    cnp.uint32_t (*next_uint32)(void *state) noexcept nogil
+    double (*next_double)(void *state) noexcept nogil
+    cnp.uint64_t (*next_raw)(void *state) noexcept nogil
 
 
 # Matches rk_double() exactly: uses next_double from MT19937 capsule
