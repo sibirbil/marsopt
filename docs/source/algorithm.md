@@ -227,94 +227,77 @@ So the integer mutation rule preserves the center of the underlying continuous p
 
 Categorical variables are stored internally as **integer indices**: if a categorical variable can take one of $k$ categories, each observed value is stored as an integer in $\{0, 1, \dots, k-1\}$ (with $-1$ indicating an unset value). This is more memory-efficient than the previous one-hot representation and simplifies frequency counting.
 
-### 5.1. Elite Frequency Vector
+### 5.1. Good and Bad Trial Sets
 
-For the categories currently available in the trial, MARS counts how often each category appears among the elite trials:
+At an adaptive trial, MARS forms a **candidate pool** for categorical scoring:
 
-$$
-f_j = \#\{i \in \text{elites} : \text{category}_i = j\}, \quad j = 1, \dots, k.
-$$
+- if `elite_window=None`, the pool is the full completed history;
+- otherwise, the pool is restricted to the most recent `elite_window` completed trials.
 
-The normalized frequency vector is
-
-$$
-\overline{\mathbf{f}} = \frac{1}{\sum_r f_r} \mathbf{f}.
-$$
-
-This can be interpreted as an empirical summary of how often each currently available category appeared among strong past trials.
-
-### 5.2. Diversity-Aware Parabolic Exploration
-
-Before the main exploit step, MARS checks whether the elite set is **dominated** by a single category. Define
+Within that pool, the current elite schedule determines the **good set**
 
 $$
-\text{dominance} = \frac{\max_j f_j}{\sum_r f_r},
+\mathcal{G}_t = \text{top } n_{\text{elite}}(t) \text{ trials in the pool},
 $$
 
-and a normalized diversity factor
+and the **bad set** is the remainder of the same pool:
 
 $$
-d = \frac{\text{dominance} - 1/k}{1 - 1/k}.
+\mathcal{B}_t = \text{pool} \setminus \mathcal{G}_t.
 $$
 
-The probability of taking a purely exploratory (uniform random) step is
+This keeps categorical sampling aligned with the same elite schedule and recency filter used in the rest of the algorithm.
+
+### 5.2. Rank-Weighted Good Counts
+
+For each category $j$, MARS accumulates separate statistics over the good and bad sets. The good set is rank-weighted so that stronger elites contribute more:
 
 $$
-p_{\text{explore}} = \frac{d}{k} \cdot 4\,p_t(1 - p_t).
+w_i = \log(n_{\text{elite}}(t)+1) - \log(i+1), \quad i=1,\dots,n_{\text{elite}}(t).
 $$
 
-The parabolic term $4\,p_t(1 - p_t)$ peaks at mid-run and vanishes at the boundaries, so:
-
-- early on, exploration is driven by the initial random phase, not this mechanism;
-- mid-run, if elites are concentrated on one category, exploration is boosted;
-- late in the run, the term fades regardless of diversity.
-
-This prevents premature categorical lock-in without wasting budget on uniform exploration when the elite distribution is already diverse or when refinement is more valuable.
-
-### 5.3. Noise, Reflection, and Softmax Sampling
-
-When the explore coin does not fire, MARS uses the elite frequency vector with noise and temperature-scaled softmax:
-
-1. **Gaussian noise** is added coordinate-wise:
-
-   $$
-   \mathbf{m} = \overline{\mathbf{f}} + \mathbf{z},
-   \quad
-   \mathbf{z} \sim \mathcal{N}(0, \eta(t) I).
-   $$
-
-2. Each coordinate is **reflected** back into $[0,1]$ using the same dampened reflection rule as in the numerical case.
-
-3. **Temperature-scaled softmax** converts the noisy vector to sampling probabilities:
+The resulting summaries are
 
 $$
-\beta_{\text{cat}}(t)
-=
-\frac{1}{0.1 + 0.9\,\mathrm{cos\_anneal}(t)}.
+g_j = \sum_{i \in \mathcal{G}_t} w_i \,\mathbf{1}\{\text{category}_i = j\},
 $$
+
+$$
+b_j = \sum_{i \in \mathcal{B}_t} \mathbf{1}\{\text{category}_i = j\}.
+$$
+
+So categories supported by top-ranked elites receive larger good mass than categories that only appear in weaker elites.
+
+### 5.3. Log-Ratio Scoring and Sampling
+
+These counts are converted into smoothed probabilities
+
+$$
+p_j^{\text{good}} = \frac{g_j + \alpha}{\sum_r g_r + \alpha k},
+\qquad
+p_j^{\text{bad}} = \frac{b_j + \alpha}{\sum_r b_r + \alpha k},
+$$
+
+where $k$ is the number of currently available categories and $\alpha = 1/k$.
+
+The categorical score is then
+
+$$
+s_j = \log p_j^{\text{good}} - \log p_j^{\text{bad}}.
+$$
+
+MARS exponentiates these scores, normalizes them, and then adds a small uniform floor $\eta$:
 
 $$
 \pi_j
 =
-\frac{\exp(\beta_{\text{cat}}(t)\, m_j)}
-{\sum_{r=1}^{k} \exp(\beta_{\text{cat}}(t)\, m_r)},
-\quad j=1,\dots,k.
+(1-\eta)\,
+\frac{\exp(s_j)}{\sum_r \exp(s_r)}
++
+\frac{\eta}{k}.
 $$
 
-Since $\beta_{\text{cat}}(t)$ increases over time, the categorical sampler becomes progressively sharper:
-
-- early in the run, category probabilities are flatter and more exploratory;
-- later in the run, the largest coordinates receive more concentrated probability mass.
-
-If one prefers conventional temperature notation, the corresponding temperature is
-
-$$
-T_{\text{cat}}(t) = \frac{1}{\beta_{\text{cat}}(t)} = 0.1 + 0.9\,\mathrm{cos\_anneal}(t),
-$$
-
-which decreases over time. The existing plot in the documentation visualizes this reciprocal temperature scale.
-
-![Evolution of Categorical Temperature Over Time](_static/algorithm/categorical_temperature_100.png)
+This creates a lightweight TPE-style contrast: categories overrepresented among strong recent trials and underrepresented among weaker trials receive higher probability.
 
 ## 6. Iterative Procedure
 
@@ -331,7 +314,6 @@ At each trial:
    - compute the current progress ratio $p_t$,
    - compute $n_{\text{elite}}(t)$,
    - update the numerical noise schedule $\eta(t)$,
-   - update the categorical sharpness schedule $\beta_{\text{cat}}(t)$,
    - sample each variable using the elite-guided rules above.
 3. Evaluate the objective function on the resulting point.
 4. Store the completed trial only if the objective returns a finite numerical value.
@@ -408,15 +390,15 @@ The most defensible theoretical property of the integer rule (used for large int
 
 That makes the integer sampler a natural extension of the numerical mutation rule rather than a separate ad hoc mechanism.
 
-### 7.8. Categorical Sampling with Diversity-Aware Exploration
+### 7.8. Categorical Sampling with Good/Bad Contrast
 
 The categorical update combines two complementary mechanisms:
 
-- **Diversity-aware exploration**: the parabolic exploration probability acts as an automatic correction for elite concentration. When elites are dominated by one category, the algorithm injects more uniform exploration mid-run. The parabolic schedule $4\,p_t(1-p_t)$ ensures this correction is strongest when it matters most and does not interfere with early random exploration or late refinement.
+- **Good/bad contrast**: the exploit branch compares how strongly each category appears in the current elite set versus the rest of the active pool. The log-ratio $\log p^{\text{good}} - \log p^{\text{bad}}$ favors categories that separate strong trials from weak ones.
 
-- **Elite frequency softmax**: the exploit branch uses elite frequencies (rather than one-hot averages) as the base signal. This is a more direct representation of categorical preference and pairs naturally with the temperature-scaled softmax. As before, Gaussian perturbation prevents rigid reuse of the modal category, and the increasing softmax sharpness gradually reduces entropy over time.
+- **Rank-weighted reuse of elites**: within the good set, better elites contribute more than borderline elites. In addition, the implementation may directly keep the parent elite category when mutation does not fire, preserving useful local structure across mixed-variable proposals.
 
-This is closely related in spirit to Boltzmann sampling and annealing-style control of randomness. The analogy is useful, but it should be read as a descriptive connection rather than as a proof that MARS inherits simulated-annealing convergence guarantees.
+This is closely related in spirit to TPE-style density-ratio reasoning, but it should be interpreted as a practical heuristic layered on top of the existing elite-based search rather than as a full Parzen-estimator model.
 
 ## 8. References
 
