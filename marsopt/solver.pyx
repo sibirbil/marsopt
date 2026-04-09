@@ -807,7 +807,8 @@ cdef class Study:
         cdef Variable var
         cdef int trial_id, cat_size, category_idx, parent_cat_idx
         cdef int parent_pos, best_pos, i
-        cdef double mutate_prob, parent_prob, best_prob, second_prob, copy_prob, margin
+        cdef double mutate_prob, best_prob, second_prob, copy_prob, margin
+        cdef double confidence, rel_margin, uniform_prob, excess_conf, margin_conf
         cdef cnp.ndarray[cnp.int32_t, ndim=1] cat_indices
         cdef int n_elites_count
         cdef int *var_int_data
@@ -887,10 +888,25 @@ cdef class Study:
                     elif self._cat_freq_buf[i] > second_prob:
                         second_prob = self._cat_freq_buf[i]
 
-                parent_prob = self._cat_freq_buf[parent_pos]
-                margin = best_prob - second_prob
-                if parent_pos == best_pos and parent_prob >= 0.35 and margin >= 0.05:
-                    copy_prob = (1.0 - mutate_prob) * min(1.0, margin / 0.15)
+                if parent_pos == best_pos:
+                    margin = best_prob - second_prob
+                    uniform_prob = 1.0 / <double>cat_size
+                    if best_prob > uniform_prob:
+                        excess_conf = (best_prob - uniform_prob) / (1.0 - uniform_prob)
+                    else:
+                        excess_conf = 0.0
+
+                    if best_prob > 0.0:
+                        rel_margin = margin / best_prob
+                    else:
+                        rel_margin = 0.0
+
+                    margin_conf = rel_margin
+                    if margin_conf > 1.0:
+                        margin_conf = 1.0
+
+                    confidence = csqrt(excess_conf * margin_conf)
+                    copy_prob = (1.0 - mutate_prob) * confidence
 
             if parent_in_space and copy_prob > 0.0 and _rng_double(bg) < copy_prob:
                 category_idx = parent_cat_idx
