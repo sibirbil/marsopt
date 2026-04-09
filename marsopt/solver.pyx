@@ -176,10 +176,11 @@ cdef int _collect_elite_inbounds(
 
 cdef void _compute_cat_lg_scores(
     int *var_values,
-    long *elite_idx, int n_elites,
     long *sorted_idx, int sorted_size,
     int window_start,
+    double progress,
     int *cat_indices, int cat_size,
+    int n_elites,
     double eta,
     double *probs_out,
     vector[double] &good_buf, vector[double] &bad_buf
@@ -187,12 +188,12 @@ cdef void _compute_cat_lg_scores(
     """
     TPE-lite good/bad categorical scoring with rank-weighted counts.
 
-    - good = current elite set
+    - good = top-ranked active trials, with a progress-dependent floor
     - bad  = remaining trials in the current candidate pool
     - Rank weights: CMA-ES style log-rank, w_i = log(n+1) - log(rank+1)
     - Score = log(p_good) - log(p_bad), then softmax + uniform floor
     """
-    cdef int i, j, val, max_cat_idx, seen_pool
+    cdef int i, j, val, max_cat_idx, seen_pool, active_count, n_good, cat_floor
     cdef double K, w, G, B, p_good, p_bad, score_max, s, alpha
 
     if cat_size <= 0 or n_elites <= 0 or sorted_size == 0:
@@ -209,17 +210,42 @@ cdef void _compute_cat_lg_scores(
 
     K = <double>cat_size
 
-    # Rank-weighted counts over the active elite set.
+    active_count = 0
+    for i in range(sorted_size):
+        if sorted_idx[i] >= window_start:
+            active_count += 1
+
+    if active_count <= 0:
+        for j in range(cat_size):
+            probs_out[j] = 1.0 / K
+        return
+
+    cat_floor = 2 + <int>cround(3.0 * progress * progress)
+    if cat_floor < 2:
+        cat_floor = 2
+    n_good = n_elites
+    if n_good < cat_floor:
+        n_good = cat_floor
+    if n_good > active_count:
+        n_good = active_count
+
+    # Rank-weighted counts over the active good set.
     good_buf.assign(max_cat_idx + 1, 0.0)
     bad_buf.assign(max_cat_idx + 1, 0.0)
 
     G = 0.0
-    for i in range(n_elites):
-        val = var_values[elite_idx[i]]
+    seen_pool = 0
+    for i in range(sorted_size):
+        if sorted_idx[i] < window_start:
+            continue
+        if seen_pool >= n_good:
+            break
+        val = var_values[sorted_idx[i]]
         if val >= 0 and val <= max_cat_idx:
-            w = clog(<double>(n_elites + 1)) - clog(<double>(i + 1))
+            w = clog(<double>(n_good + 1)) - clog(<double>(seen_pool + 1))
             good_buf[val] += w
             G += w
+        seen_pool += 1
 
     # Use the same candidate pool as elite selection: full history or recent window.
     B = 0.0
@@ -227,7 +253,7 @@ cdef void _compute_cat_lg_scores(
     for i in range(sorted_size):
         if sorted_idx[i] < window_start:
             continue
-        if seen_pool < n_elites:
+        if seen_pool < n_good:
             seen_pool += 1
             continue
         val = var_values[sorted_idx[i]]
@@ -780,12 +806,13 @@ cdef class Study:
     def _suggest_categorical(self, str name, list categories):
         cdef Variable var
         cdef int trial_id, cat_size, category_idx, parent_cat_idx
-        cdef double mutate_prob
+        cdef int parent_pos, best_pos, i
+        cdef double mutate_prob, parent_prob, best_prob, second_prob, copy_prob, margin
         cdef cnp.ndarray[cnp.int32_t, ndim=1] cat_indices
         cdef int n_elites_count
         cdef int *var_int_data
         cdef long *elite_data
-        cdef int i, parent_in_space
+        cdef int parent_in_space
         cdef bitgen_t *bg = self._bg
 
         py_var = self._variables.get(name)
@@ -816,10 +843,11 @@ cdef class Study:
             self._cat_freq_buf.resize(cat_size)
             _compute_cat_lg_scores(
                 var_int_data,
-                elite_data, n_elites_count,
                 self._sorted_idx.data(), <int>self._sorted_idx.size(),
                 self._current_window_start,
+                self._progress,
                 <int*>cnp.PyArray_DATA(cat_indices), cat_size,
+                n_elites_count,
                 0.02,
                 self._cat_freq_buf.data(),
                 self._cat_good_buf, self._cat_bad_buf
@@ -835,16 +863,36 @@ cdef class Study:
                 mutate_prob = 0.75
 
             parent_in_space = 0
+            parent_pos = -1
             parent_cat_idx = -1
+            copy_prob = 0.0
             if self._current_cat_parent_idx >= 0:
                 parent_cat_idx = var_int_data[self._current_cat_parent_idx]
                 if parent_cat_idx >= 0:
                     for i in range(cat_size):
                         if cat_indices[i] == parent_cat_idx:
                             parent_in_space = 1
+                            parent_pos = i
                             break
 
-            if parent_in_space and _rng_double(bg) >= mutate_prob:
+            if parent_in_space:
+                best_pos = 0
+                best_prob = self._cat_freq_buf[0]
+                second_prob = 0.0
+                for i in range(1, cat_size):
+                    if self._cat_freq_buf[i] > best_prob:
+                        second_prob = best_prob
+                        best_prob = self._cat_freq_buf[i]
+                        best_pos = i
+                    elif self._cat_freq_buf[i] > second_prob:
+                        second_prob = self._cat_freq_buf[i]
+
+                parent_prob = self._cat_freq_buf[parent_pos]
+                margin = best_prob - second_prob
+                if parent_pos == best_pos and parent_prob >= 0.35 and margin >= 0.05:
+                    copy_prob = (1.0 - mutate_prob) * min(1.0, margin / 0.15)
+
+            if parent_in_space and copy_prob > 0.0 and _rng_double(bg) < copy_prob:
                 category_idx = parent_cat_idx
             else:
                 category_idx = cat_indices[_rng_choice_p(bg, cat_size, self._cat_freq_buf.data())]
