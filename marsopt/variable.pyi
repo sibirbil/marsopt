@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 import numpy as np
 from numpy.typing import NDArray
 
@@ -73,8 +73,8 @@ class Variable:
     """
 
     name: str
-    type: type
-    values: NDArray
+    type: Optional[type]
+    values: Optional[NDArray]
     category_indexer: CategoryIndexer
 
     def __init__(self, name: str) -> None: ...

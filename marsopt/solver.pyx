@@ -112,16 +112,6 @@ cdef inline double _reflect_at_boundaries(double x, double low, double high) noe
     return x
 
 
-cdef inline int _argmax_d(double *arr, int n) noexcept nogil:
-    cdef int i, best = 0
-    cdef double best_val = arr[0]
-    for i in range(1, n):
-        if arr[i] > best_val:
-            best_val = arr[i]
-            best = i
-    return best
-
-
 cdef void _build_hist_and_smooth(
     double *elite_var, int n_elites, int low, int n_values,
     double sigma_t, double *scores_out, double *hist_sum_out
@@ -215,27 +205,27 @@ cdef int _collect_elite_inbounds(
 cdef void _compute_cat_freq(
     int *var_values, long *elite_idx, int n_elites,
     int *cat_indices, int cat_size,
-    double *freq_out, double *total_out
+    double *freq_out, double *total_out,
+    vector[int] &counts_buf
 ) noexcept nogil:
     cdef int i, j, val, max_cat_idx
-    cdef int counts[256]
 
     max_cat_idx = 0
     for i in range(cat_size):
         if cat_indices[i] > max_cat_idx:
             max_cat_idx = cat_indices[i]
 
-    memset(counts, 0, (max_cat_idx + 1) * sizeof(int))
+    counts_buf.assign(max_cat_idx + 1, 0)
     memset(freq_out, 0, cat_size * sizeof(double))
 
     total_out[0] = 0.0
     for i in range(n_elites):
         val = var_values[elite_idx[i]]
         if val >= 0 and val <= max_cat_idx:
-            counts[val] += 1
+            counts_buf[val] += 1
 
     for j in range(cat_size):
-        freq_out[j] = <double>counts[cat_indices[j]]
+        freq_out[j] = <double>counts_buf[cat_indices[j]]
         total_out[0] += freq_out[j]
 
 
@@ -366,8 +356,7 @@ class Trial:
         float
             The suggested floating-point value.
         """
-        if name not in self._validated_variables:
-            self._validate_numerical(name, low, high, float, log)
+        self._validate_numerical(name, low, high, float, log)
         value = self.study._suggest_numerical(name, low, high, float, log)
         self.variables[name] = value
         return value
@@ -392,8 +381,7 @@ class Trial:
         int
             The suggested integer value.
         """
-        if name not in self._validated_variables:
-            self._validate_numerical(name, low, high, int, log)
+        self._validate_numerical(name, low, high, int, log)
         value = int(self.study._suggest_numerical(name, low, high, int, log))
         self.variables[name] = value
         return value
@@ -414,8 +402,7 @@ class Trial:
         str
             The suggested categorical string value.
         """
-        if name not in self._validated_variables:
-            self._validate_categorical(name, categories)
+        self._validate_categorical(name, categories)
         value = self.study._suggest_categorical(name, categories)
         self.variables[name] = value
         return value
@@ -461,7 +448,8 @@ cdef class Study:
 
     cdef double _scores_buf[20]
     cdef vector[double] _elite_buf
-    cdef double _cat_freq_buf[256]
+    cdef vector[double] _cat_freq_buf
+    cdef vector[int] _cat_counts_buf
 
     # Incremental sorted elite tracking (replaces argpartition)
     cdef vector[double] _sorted_obj     # objective values * direction_multiplier, ascending
@@ -476,7 +464,7 @@ cdef class Study:
         double epsilon=1.0,
         elite_window=None,
         random_state=None,
-        bint verbose=True,
+        verbose=True,
     ):
         """
         Initialize the Study.
@@ -752,8 +740,7 @@ cdef class Study:
         cdef int trial_id, cat_size, category_idx
         cdef double total, dominance, div_factor, p, explore_prob, temp
         cdef cnp.ndarray[cnp.int32_t, ndim=1] cat_indices
-        cdef double oh_buf[256]
-        cdef double noisy_buf[256]
+        cdef vector[double] noisy_buf
         cdef int n_elites_count
         cdef int *var_int_data
         cdef long *elite_data
@@ -785,10 +772,12 @@ cdef class Study:
             elite_data = <long*>cnp.PyArray_DATA(self._elite_indices_arr)
             n_elites_count = self._elite_indices_arr.shape[0]
 
+            self._cat_freq_buf.resize(cat_size)
             _compute_cat_freq(
                 var_int_data, elite_data, n_elites_count,
                 <int*>cnp.PyArray_DATA(cat_indices), cat_size,
-                self._cat_freq_buf, &total
+                self._cat_freq_buf.data(), &total,
+                self._cat_counts_buf
             )
 
             if total > 0.0:
@@ -811,15 +800,16 @@ cdef class Study:
                     var.values[trial_id] = category_idx
                     return var.category_indexer.get_strings(category_idx)
 
+                noisy_buf.resize(cat_size)
                 for i in range(cat_size):
                     noisy_buf[i] = self._cat_freq_buf[i] / total + _rng_normal(bg, 0.0, self._current_noise, &self._has_gauss, &self._gauss_cache)
 
-                _reflect_categorical_noise(noisy_buf, cat_size)
+                _reflect_categorical_noise(noisy_buf.data(), cat_size)
 
                 temp = self._current_cat_temp if self._current_cat_temp != 0.0 else 1.0
-                _softmax_inplace(noisy_buf, cat_size, temp)
+                _softmax_inplace(noisy_buf.data(), cat_size, temp)
 
-                category_idx = cat_indices[_rng_choice_p(bg, cat_size, noisy_buf)]
+                category_idx = cat_indices[_rng_choice_p(bg, cat_size, noisy_buf.data())]
 
         var.values[trial_id] = category_idx
         return var.category_indexer.get_strings(category_idx)
@@ -857,7 +847,7 @@ cdef class Study:
         cdef bitgen_t *bg = self._bg
         cdef double scaled_obj
         cdef int lo, hi, mid
-        cdef int sorted_size, i
+        cdef int sorted_size, i, n_valid
 
         if not isinstance(n_trials, int):
             raise TypeError("n_trials must be an integer.")
@@ -914,6 +904,12 @@ cdef class Study:
             if self.n_init_points is None:
                 self.n_init_points = max(10, round(csqrt(<double>self.n_trials)))
 
+        elite_scale = 2.0 * csqrt(<double>total_trials)
+        self._direction_multiplier = 1.0 if self.direction == "minimize" else -1.0
+
+        obj_ptr = <double*>cnp.PyArray_DATA(self._objective_values_arr)
+        time_ptr = <double*>cnp.PyArray_DATA(self._elapsed_times_arr)
+
         # Rebuild sorted elite list for resume case
         if n_exist_trials > 0:
             self._sorted_obj.clear()
@@ -935,14 +931,8 @@ cdef class Study:
             self._sorted_obj.clear()
             self._sorted_idx.clear()
 
-        elite_scale = 2.0 * csqrt(<double>total_trials)
-        self._direction_multiplier = 1.0 if self.direction == "minimize" else -1.0
-
         final_noise_val = <double>self.final_noise
         noise_range = self.initial_noise - final_noise_val
-
-        obj_ptr = <double*>cnp.PyArray_DATA(self._objective_values_arr)
-        time_ptr = <double*>cnp.PyArray_DATA(self._elapsed_times_arr)
 
         for iteration in range(n_exist_trials, total_trials):
             start_time = perf_counter()
@@ -964,26 +954,25 @@ cdef class Study:
                 self._current_noise = final_noise_val + noise_range * cos_anneal
                 self._current_cat_temp = 1.0 / (0.1 + 0.9 * cos_anneal)
 
-                # Incremental sorted elite selection (replaces argpartition)
+                # Incremental sorted elite selection
                 window_start = 0
                 if self.elite_window is not None:
                     window_start = max(0, iteration - <int>self.elite_window)
-                    # Remove expired indices from sorted list
-                    while self._sorted_obj.size() > 0 and self._sorted_idx[0] < window_start:
-                        self._sorted_obj.erase(self._sorted_obj.begin())
-                        self._sorted_idx.erase(self._sorted_idx.begin())
 
+                # Collect top-k from sorted list, respecting window
                 sorted_size = <int>self._sorted_obj.size()
-                k = min(self._current_n_elites, sorted_size)
+                k = self._current_n_elites
+                self._elite_buf.clear()
+                for i in range(sorted_size):
+                    if self._sorted_idx[i] >= window_start:
+                        self._elite_buf.push_back(<double>self._sorted_idx[i])
+                        if <int>self._elite_buf.size() >= k:
+                            break
 
-                if k >= sorted_size:
-                    self._elite_indices_arr = np.empty(sorted_size, dtype=np.int64)
-                    for i in range(sorted_size):
-                        (<long*>cnp.PyArray_DATA(self._elite_indices_arr))[i] = self._sorted_idx[i]
-                else:
-                    self._elite_indices_arr = np.empty(k, dtype=np.int64)
-                    for i in range(k):
-                        (<long*>cnp.PyArray_DATA(self._elite_indices_arr))[i] = self._sorted_idx[i]
+                n_valid = <int>self._elite_buf.size()
+                self._elite_indices_arr = np.empty(n_valid, dtype=np.int64)
+                for i in range(n_valid):
+                    (<long*>cnp.PyArray_DATA(self._elite_indices_arr))[i] = <long>self._elite_buf[i]
 
                 eps_t = self.epsilon / (<double>iteration + 1.0)
                 self._force_random = _rng_double(bg) < eps_t
@@ -1102,7 +1091,7 @@ cdef class Study:
             raise TypeError(f"direction must be a string, got {type(direction)}")
         if direction not in ["minimize", "maximize"]:
             raise ValueError(f"direction must be either 'minimize' or 'maximize', got {direction}")
-        if not isinstance(verbose, (bool, int)):
+        if not isinstance(verbose, bool):
             raise TypeError(f"verbose must be a boolean, got {type(verbose)}")
 
     @property
