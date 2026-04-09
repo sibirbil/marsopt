@@ -160,6 +160,8 @@ cython_debug/
 #.idea/
 
 *.cpp
+*.c
 
 ppdata/
 exdata/
+
