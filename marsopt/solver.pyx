@@ -160,34 +160,6 @@ cdef inline void _normalize_scores(double *scores, int n, double noise) noexcept
         scores[i] = (1.0 - floor_val) * (scores[i] / s) + floor_val / n
 
 
-cdef void _reflect_categorical_noise(double *noisy, int size) noexcept nogil:
-    cdef int i
-    cdef bint any_oob = True
-    while any_oob:
-        any_oob = False
-        for i in range(size):
-            if noisy[i] < 0.0:
-                noisy[i] = -noisy[i] * 0.5
-                any_oob = True
-            elif noisy[i] > 1.0:
-                noisy[i] = 1.0 - (noisy[i] - 1.0) * 0.5
-                any_oob = True
-
-
-cdef void _softmax_inplace(double *arr, int size, double temp) noexcept nogil:
-    cdef int i
-    cdef double max_val = arr[0]
-    cdef double sum_exp = 0.0
-    for i in range(1, size):
-        if arr[i] > max_val:
-            max_val = arr[i]
-    for i in range(size):
-        arr[i] = cexp((arr[i] - max_val) * temp)
-        sum_exp += arr[i]
-    for i in range(size):
-        arr[i] /= sum_exp
-
-
 cdef int _collect_elite_inbounds(
     double *var_values, long *elite_idx, int n_elites,
     double low, double high, vector[double] &out_buf
@@ -202,31 +174,98 @@ cdef int _collect_elite_inbounds(
     return <int>out_buf.size()
 
 
-cdef void _compute_cat_freq(
-    int *var_values, long *elite_idx, int n_elites,
+cdef void _compute_cat_lg_scores(
+    int *var_values,
+    long *elite_idx, int n_elites,
+    long *sorted_idx, int sorted_size,
+    int window_start,
     int *cat_indices, int cat_size,
-    double *freq_out, double *total_out,
-    vector[int] &counts_buf
+    double eta,
+    double *probs_out,
+    vector[double] &good_buf, vector[double] &bad_buf
 ) noexcept nogil:
-    cdef int i, j, val, max_cat_idx
+    """
+    TPE-lite good/bad categorical scoring with rank-weighted counts.
 
+    - good = current elite set
+    - bad  = remaining trials in the current candidate pool
+    - Rank weights: CMA-ES style log-rank, w_i = log(n+1) - log(rank+1)
+    - Score = log(p_good) - log(p_bad), then softmax + uniform floor
+    """
+    cdef int i, j, val, max_cat_idx, seen_pool
+    cdef double K, w, G, B, p_good, p_bad, score_max, s, alpha
+
+    if cat_size <= 0 or n_elites <= 0 or sorted_size == 0:
+        K = <double>cat_size
+        for j in range(cat_size):
+            probs_out[j] = 1.0 / K
+        return
+
+    # Find max category index
     max_cat_idx = 0
     for i in range(cat_size):
         if cat_indices[i] > max_cat_idx:
             max_cat_idx = cat_indices[i]
 
-    counts_buf.assign(max_cat_idx + 1, 0)
-    memset(freq_out, 0, cat_size * sizeof(double))
+    K = <double>cat_size
 
-    total_out[0] = 0.0
+    # Rank-weighted counts over the active elite set.
+    good_buf.assign(max_cat_idx + 1, 0.0)
+    bad_buf.assign(max_cat_idx + 1, 0.0)
+
+    G = 0.0
     for i in range(n_elites):
         val = var_values[elite_idx[i]]
         if val >= 0 and val <= max_cat_idx:
-            counts_buf[val] += 1
+            w = clog(<double>(n_elites + 1)) - clog(<double>(i + 1))
+            good_buf[val] += w
+            G += w
 
+    # Use the same candidate pool as elite selection: full history or recent window.
+    B = 0.0
+    seen_pool = 0
+    for i in range(sorted_size):
+        if sorted_idx[i] < window_start:
+            continue
+        if seen_pool < n_elites:
+            seen_pool += 1
+            continue
+        val = var_values[sorted_idx[i]]
+        if val >= 0 and val <= max_cat_idx:
+            bad_buf[val] += 1.0
+            B += 1.0
+
+    if G == 0.0 and B == 0.0:
+        for j in range(cat_size):
+            probs_out[j] = 1.0 / K
+        return
+
+    # Adaptive alpha: small smoothing, scales with 1/K
+    alpha = 1.0 / K
+
+    # log(p_good) - log(p_bad) scores
     for j in range(cat_size):
-        freq_out[j] = <double>counts_buf[cat_indices[j]]
-        total_out[0] += freq_out[j]
+        p_good = (good_buf[cat_indices[j]] + alpha) / (G + alpha * K)
+        if B > 0.0:
+            p_bad = (bad_buf[cat_indices[j]] + alpha) / (B + alpha * K)
+        else:
+            p_bad = 1.0 / K
+        probs_out[j] = clog(p_good) - clog(p_bad)
+
+    # Softmax
+    score_max = probs_out[0]
+    for j in range(1, cat_size):
+        if probs_out[j] > score_max:
+            score_max = probs_out[j]
+
+    s = 0.0
+    for j in range(cat_size):
+        probs_out[j] = cexp(probs_out[j] - score_max)
+        s += probs_out[j]
+
+    # Normalize + uniform floor
+    for j in range(cat_size):
+        probs_out[j] = (1.0 - eta) * (probs_out[j] / s) + eta / K
 
 
 # ============================================================================
@@ -438,7 +477,7 @@ cdef class Study:
     cdef double _progress
     cdef double _current_noise
     cdef int _current_n_elites
-    cdef double _current_cat_temp
+    cdef int _current_window_start
     cdef double _direction_multiplier
     cdef cnp.ndarray _elite_indices_arr
     cdef bint _force_random
@@ -449,7 +488,9 @@ cdef class Study:
     cdef double _scores_buf[20]
     cdef vector[double] _elite_buf
     cdef vector[double] _cat_freq_buf
-    cdef vector[int] _cat_counts_buf
+    cdef vector[double] _cat_good_buf
+    cdef vector[double] _cat_bad_buf
+    cdef long _current_cat_parent_idx
 
     # Incremental sorted elite tracking (replaces argpartition)
     cdef vector[double] _sorted_obj     # objective values * direction_multiplier, ascending
@@ -530,13 +571,14 @@ cdef class Study:
         self._progress = 0.0
         self._current_noise = 0.0
         self._current_n_elites = 0
-        self._current_cat_temp = 0.0
+        self._current_window_start = 0
         self._direction_multiplier = 0.0
         self._elite_indices_arr = None
         self._force_random = False
         self._evo_path = {}
         self._best_ever_idx = None
         self._logger = OptimizationLogger() if verbose else None
+        self._current_cat_parent_idx = -1
 
     def __repr__(self):
         return (
@@ -737,14 +779,13 @@ cdef class Study:
 
     def _suggest_categorical(self, str name, list categories):
         cdef Variable var
-        cdef int trial_id, cat_size, category_idx
-        cdef double total, dominance, div_factor, p, explore_prob, temp
+        cdef int trial_id, cat_size, category_idx, parent_cat_idx
+        cdef double mutate_prob
         cdef cnp.ndarray[cnp.int32_t, ndim=1] cat_indices
-        cdef vector[double] noisy_buf
         cdef int n_elites_count
         cdef int *var_int_data
         cdef long *elite_data
-        cdef int i
+        cdef int i, parent_in_space
         cdef bitgen_t *bg = self._bg
 
         py_var = self._variables.get(name)
@@ -773,43 +814,40 @@ cdef class Study:
             n_elites_count = self._elite_indices_arr.shape[0]
 
             self._cat_freq_buf.resize(cat_size)
-            _compute_cat_freq(
-                var_int_data, elite_data, n_elites_count,
+            _compute_cat_lg_scores(
+                var_int_data,
+                elite_data, n_elites_count,
+                self._sorted_idx.data(), <int>self._sorted_idx.size(),
+                self._current_window_start,
                 <int*>cnp.PyArray_DATA(cat_indices), cat_size,
-                self._cat_freq_buf.data(), &total,
-                self._cat_counts_buf
+                0.02,
+                self._cat_freq_buf.data(),
+                self._cat_good_buf, self._cat_bad_buf
             )
 
-            if total > 0.0:
-                dominance = 0.0
-                for i in range(cat_size):
-                    if self._cat_freq_buf[i] > dominance:
-                        dominance = self._cat_freq_buf[i]
-                dominance = dominance / total
+            if self._current_cat_parent_idx < 0 and n_elites_count > 0:
+                self._current_cat_parent_idx = elite_data[_rng_randint(bg, n_elites_count)]
+
+            mutate_prob = 0.10 + 1.25 * self._current_noise
+            if mutate_prob < 0.15:
+                mutate_prob = 0.15
+            elif mutate_prob > 0.75:
+                mutate_prob = 0.75
+
+            parent_in_space = 0
+            parent_cat_idx = -1
+            if self._current_cat_parent_idx >= 0:
+                parent_cat_idx = var_int_data[self._current_cat_parent_idx]
+                if parent_cat_idx >= 0:
+                    for i in range(cat_size):
+                        if cat_indices[i] == parent_cat_idx:
+                            parent_in_space = 1
+                            break
+
+            if parent_in_space and _rng_double(bg) >= mutate_prob:
+                category_idx = parent_cat_idx
             else:
-                dominance = 0.5
-            div_factor = max(0.0, (dominance - 1.0 / cat_size)) / (1.0 - 1.0 / cat_size + 1e-10)
-            p = self._progress
-            explore_prob = (1.0 / cat_size) * div_factor * 4.0 * p * (1.0 - p)
-
-            if _rng_double(bg) < explore_prob:
-                category_idx = cat_indices[_rng_randint(bg, cat_size)]
-            else:
-                if total == 0.0:
-                    category_idx = cat_indices[_rng_randint(bg, cat_size)]
-                    var.values[trial_id] = category_idx
-                    return var.category_indexer.get_strings(category_idx)
-
-                noisy_buf.resize(cat_size)
-                for i in range(cat_size):
-                    noisy_buf[i] = self._cat_freq_buf[i] / total + _rng_normal(bg, 0.0, self._current_noise, &self._has_gauss, &self._gauss_cache)
-
-                _reflect_categorical_noise(noisy_buf.data(), cat_size)
-
-                temp = self._current_cat_temp if self._current_cat_temp != 0.0 else 1.0
-                _softmax_inplace(noisy_buf.data(), cat_size, temp)
-
-                category_idx = cat_indices[_rng_choice_p(bg, cat_size, noisy_buf.data())]
+                category_idx = cat_indices[_rng_choice_p(bg, cat_size, self._cat_freq_buf.data())]
 
         var.values[trial_id] = category_idx
         return var.category_indexer.get_strings(category_idx)
@@ -938,6 +976,7 @@ cdef class Study:
             start_time = perf_counter()
             progress = (<double>iteration + 1.0) / <double>self.n_trials
             self._progress = progress
+            self._current_window_start = 0
 
             for py_var in self._variables.values():
                 if py_var.type is list:
@@ -952,12 +991,12 @@ cdef class Study:
 
                 cos_anneal = (1.0 + ccos(M_PI * progress)) * 0.5
                 self._current_noise = final_noise_val + noise_range * cos_anneal
-                self._current_cat_temp = 1.0 / (0.1 + 0.9 * cos_anneal)
 
                 # Incremental sorted elite selection
                 window_start = 0
                 if self.elite_window is not None:
                     window_start = max(0, iteration - <int>self.elite_window)
+                self._current_window_start = window_start
 
                 # Collect top-k from sorted list, respecting window
                 sorted_size = <int>self._sorted_obj.size()
@@ -979,6 +1018,7 @@ cdef class Study:
             else:
                 self._force_random = False
 
+            self._current_cat_parent_idx = -1
             trial = Trial(self, iteration)
             self._current_trial = trial
             obj_value = objective_function(trial)
