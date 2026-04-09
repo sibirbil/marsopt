@@ -16,7 +16,7 @@ from functools import lru_cache
 cnp.import_array()
 
 # ============================================================================
-# BitGenerator C API - exact RandomState compatibility
+# BitGenerator C API (PCG64)
 # ============================================================================
 
 ctypedef struct bitgen_t:
@@ -244,6 +244,8 @@ cdef void _compute_cat_freq(
 # ============================================================================
 
 class Trial:
+    """Represents a single trial in the optimization process."""
+
     __slots__ = [
         "study",
         "trial_id",
@@ -260,6 +262,16 @@ class Trial:
         self.user_attrs = {}
 
     def add_attr(self, str name, value):
+        """
+        Add a user-defined attribute to the trial.
+
+        Parameters
+        ----------
+        name : str
+            The name of the attribute.
+        value : Any
+            The value of the attribute.
+        """
         self.user_attrs[name] = value
 
     def __repr__(self):
@@ -335,6 +347,25 @@ class Trial:
         self._validated_variables.add(name)
 
     def suggest_float(self, str name, double low, double high, bint log=False):
+        """
+        Suggest a floating-point variable value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+        low : float
+            The lower bound of the variable range.
+        high : float
+            The upper bound of the variable range.
+        log : bool, optional, default = False
+            Whether the variable is log-scaled.
+
+        Returns
+        -------
+        float
+            The suggested floating-point value.
+        """
         if name not in self._validated_variables:
             self._validate_numerical(name, low, high, float, log)
         value = self.study._suggest_numerical(name, low, high, float, log)
@@ -342,13 +373,47 @@ class Trial:
         return value
 
     def suggest_int(self, str name, int low, int high, bint log=False):
+        """
+        Suggest an integer variable value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+        low : int
+            The lower bound of the variable range.
+        high : int
+            The upper bound of the variable range.
+        log : bool, optional, default = False
+            Whether the variable is log-scaled.
+
+        Returns
+        -------
+        int
+            The suggested integer value.
+        """
         if name not in self._validated_variables:
             self._validate_numerical(name, low, high, int, log)
-        value = self.study._suggest_numerical(name, low, high, int, log)
+        value = int(self.study._suggest_numerical(name, low, high, int, log))
         self.variables[name] = value
         return value
 
     def suggest_categorical(self, str name, list categories):
+        """
+        Suggest a categorical variable value.
+
+        Parameters
+        ----------
+        name : str
+            The name of the variable.
+        categories : List[str]
+            A list of valid string categorical values.
+
+        Returns
+        -------
+        str
+            The suggested categorical string value.
+        """
         if name not in self._validated_variables:
             self._validate_categorical(name, categories)
         value = self.study._suggest_categorical(name, categories)
@@ -361,6 +426,8 @@ class Trial:
 # ============================================================================
 
 cdef class Study:
+    """Mixed Adaptive Random Search for Optimization"""
+
     cdef public int n_trials
     cdef public object n_init_points
     cdef public double initial_noise
@@ -370,9 +437,9 @@ cdef class Study:
     cdef public double epsilon
     cdef public object elite_window
 
-    cdef object _rng_obj        # RandomState (kept alive for seed compat + Python access)
-    cdef object _rng_bg_obj     # _bit_generator (prevent GC)
-    cdef bitgen_t *_bg          # C-level pointer into same MT19937
+    cdef object _rng_obj        # numpy Generator (Python-level access)
+    cdef object _rng_bg_obj     # PCG64 BitGenerator (prevent GC)
+    cdef bitgen_t *_bg          # C-level pointer into PCG64
     cdef bint _has_gauss        # gauss cache for C-level normal()
     cdef double _gauss_cache
     cdef cnp.ndarray _objective_values_arr
@@ -411,6 +478,34 @@ cdef class Study:
         random_state=None,
         bint verbose=True,
     ):
+        """
+        Initialize the Study.
+
+        Parameters
+        ----------
+        initial_noise : float, default = 0.33
+            Initial noise level.
+        direction : str, default = "minimize"
+            Direction of optimization, either "minimize" or "maximize".
+        n_init_points : int, default = None
+            Number of initial random points. If ``None``, it is set as:
+            ``round(sqrt(n_trials))``
+        final_noise : float, default = None
+            Final noise level. If ``None``, it is set as:
+            ``min(1.0 / n_trials, initial_noise)``
+        epsilon : float, default = 1.0
+            Epsilon-greedy exploration constant. At each adaptive trial, with
+            probability ``epsilon / (t + 1)`` a uniform random sample is drawn
+            instead of the elite-guided step (harmonic decay).
+        elite_window : int, default = None
+            If set, only the most recent ``elite_window`` completed trials are
+            considered for elite selection. If ``None``, full history is used.
+        random_state : int, default = None
+            Seed for reproducibility. Uses PCG64 BitGenerator internally.
+            If ``None``, a random SeedSequence is used.
+        verbose : bool, default = True
+            Whether to print logs during optimization.
+        """
         self._validate_init_params(
             n_init_points=n_init_points,
             random_state=random_state,
@@ -741,14 +836,24 @@ cdef class Study:
             return _rng_uniform(bg, low, high)
 
     def optimize(self, objective_function, int n_trials):
+        """
+        Runs the optimization loop.
+
+        Parameters
+        ----------
+        objective_function : Callable[[Trial], Union[float, int]]
+            The function to optimize.
+        n_trials : int
+            The number of trials.
+        """
         cdef int iteration, n_exist_trials, total_trials, pool_size, k, window_start
         cdef double best_value, obj_value, start_time
         cdef double elite_scale, noise_range, cos_anneal, eps_t
         cdef double progress, final_noise_val
         cdef bint is_new_best
         cdef double old_val, new_val, prev
-        cdef double *obj_ptr
-        cdef double *time_ptr
+        cdef double *obj_ptr = NULL
+        cdef double *time_ptr = NULL
         cdef bitgen_t *bg = self._bg
         cdef double scaled_obj
         cdef int lo, hi, mid
