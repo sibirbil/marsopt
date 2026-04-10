@@ -63,7 +63,7 @@ You then **return** a **float or integer** that indicates your objective value.
 ### Objective Function
 
 - It must receive a `Trial` object and use that object’s **suggest** methods to propose values.  
-- After configuring and running your model or simulation with those values, it must **return a single finite numeric value**.
+- After configuring and running your model or simulation with those values, it must **return a single real numeric value**. NaN is not accepted; positive or negative infinity is allowed.
 
 ## 3. Minimal Working Example
 
@@ -82,20 +82,20 @@ def objective(trial: Trial) -> float:
     score += np.log1p(layers) * 10  
     score += {"adam": 15, "sgd": 5, "rmsprop": 20}[optimizer]
 
-    return score 
+    return -score
 
 # Run optimization
-study = Study(direction="minimize") # Minimize the  score
+study = Study(direction="minimize", random_state=42)
 study.optimize(objective, n_trials=50)
 ```
 ```
-[I 2025-02-20 19:56:20, 16] Optimization started with 50 trials.
-[I 2025-02-20 19:56:20, 17] Trial 1 finished with value: -32.841185 and variables: {'learning_rate': 0.001329, 'num_layers': 5, 'optimizer': adam}. Best is trial 0 with value: -32.841185.
-[I 2025-02-20 19:56:20, 18] Trial 2 finished with value: -30.738093 and variables: {'learning_rate': 0.006174, 'num_layers': 3, 'optimizer': rmsprop}. Best is trial 0 with value: -32.841185.
-[I 2025-02-20 19:56:20, 18] Trial 3 finished with value: -6.086478 and variables: {'learning_rate': 0.039676, 'num_layers': 3, 'optimizer': sgd}. Best is trial 0 with value: -32.841185.
+[I ...] Optimization started with 50 trials.
+[I ...] Trial 1 finished with value: -7.249446 and variables: {'learning_rate': 0.020983, 'num_layers': 2, 'optimizer': sgd}. Best is trial 1 with value: -7.249446.
+[I ...] Trial 2 finished with value: -8.678749 and variables: {'learning_rate': 0.037652, 'num_layers': 4, 'optimizer': sgd}. Best is trial 2 with value: -8.678749.
+[I ...] Trial 3 finished with value: -7.42204 and variables: {'learning_rate': 0.084502, 'num_layers': 2, 'optimizer': adam}. Best is trial 2 with value: -8.678749.
 ...
 ...
-[I 2025-02-20 19:56:20, 48] Trial 50 finished with value: -37.847763 and variables: {'learning_rate': 0.001313, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+[I ...] Trial 50 finished with value: -32.903512 and variables: {'learning_rate': 0.000885, 'num_layers': 5, 'optimizer': adam}. Best is trial 37 with value: -37.91758.
 ```
 
 ## 4. Accessing Detailed Results
@@ -112,24 +112,27 @@ study.trials
 
 ```python
 [{'iteration': 1,
-  'objective_value': -32.84118472952258,
-  'trial_time': 0.000260959001025185,
-  'variables': {'learning_rate': 0.0013292918943162175,
-   'num_layers': 5,
-   'optimizer': 'adam'}},
+  'objective_value': -7.249445914023765,
+  'trial_time': ...,
+  'variables': {'learning_rate': 0.020983027299866144,
+   'num_layers': 2,
+   'optimizer': 'sgd'},
+  'user_attrs': {}},
  {'iteration': 2,
-  'objective_value': -30.738093352759925,
-  'trial_time': 0.0001224999978148844,
-  'variables': {'learning_rate': 0.006173770394704574,
-   'num_layers': 3,
-   'optimizer': 'rmsprop'}},
+  'objective_value': -8.6787492582556,
+  'trial_time': ...,
+  'variables': {'learning_rate': 0.03765249501831187,
+   'num_layers': 4,
+   'optimizer': 'sgd'},
+  'user_attrs': {}},
   ...
  {'iteration': 50,
-  'objective_value': -37.84776341066681,
-  'trial_time': 0.00016675000006216578,
-  'variables': {'learning_rate': 0.001312740598216683,
+  'objective_value': -32.90351179940006,
+  'trial_time': ...,
+  'variables': {'learning_rate': 0.0008849700072462417,
    'num_layers': 5,
-   'optimizer': 'rmsprop'}}]
+   'optimizer': 'adam'},
+  'user_attrs': {}}]
 ```
 
 Each trial dictionary contains:
@@ -137,6 +140,7 @@ Each trial dictionary contains:
 - **objective_value**: The final metric or loss returned by your `objective` function.  
 - **trial_time**: How long that trial took to run.  
 - **variables**: A dictionary of all variables suggested for that trial.
+- **user_attrs**: A dictionary of user-defined attributes added via `trial.add_attr()`.
 
 Likewise, one can also inspect the **best trial**:
 
@@ -145,12 +149,13 @@ study.best_trial
 ```
 
 ```python
-{'iteration': 35, 
- 'objective_value': -37.917443575884434, 
- 'trial_time': 0.0003397920008865185, 
- 'variables': {'learning_rate': 0.0010127390829420338,
-  'num_layers': 5, 
-  'optimizer': 'rmsprop'}}
+{'iteration': 37,
+ 'objective_value': -37.91757992304764,
+ 'trial_time': ...,
+ 'variables': {'learning_rate': 0.0010039652381640435,
+  'num_layers': 5,
+  'optimizer': 'rmsprop'},
+ 'user_attrs': {}}
 ```
 
 ### Objective Values and Elapsed Times
@@ -162,7 +167,7 @@ study.objective_values
 ```
 
 ```python
-array([-32.84118473, -30.73809335,  -6.08647779, ..., -37.84776341])
+array([-7.24944591, -8.67874926, -7.42203965, ..., -32.9035118])
 ```
 
 ```python
@@ -170,7 +175,7 @@ study.elapsed_times
 ```
 
 ```python
-array([2.60959001e-04, 1.22499998e-04, 1.15458002e-04, ..., 1.66750000e-04])
+array([...])  # execution times in seconds
 ```
 
 ## 5. Advanced Configuration
@@ -179,8 +184,8 @@ This section gives a few other parameters that users can adjust.
 
 ### Controlling Noise
 
-- **`initial_noise`** (float): The initial sampling noise. Default is `0.2`.  
-- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `min(2 / n_trials, initial_noise)` if not set.
+- **`initial_noise`** (float): The initial sampling noise. Default is `0.33`.
+- **`final_noise`** (float): How much noise remains at the end of the search. Defaults to `max(1e-7, min(1 / n_trials, initial_noise))` if not set.
 
 Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` down to `final_noise`, facilitating broad exploration early on and refinement later.
 
@@ -196,9 +201,9 @@ If you decide 50 trials aren’t enough, you can resume with additional trials:
 study.optimize(objective, n_trials=50)
 ```
 ```
-[I 2025-02-20 20:17:46, 688] Trial 51 finished with value: -37.917177 and variables: {'learning_rate': 0.001021, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
-[I 2025-02-20 20:17:46, 689] Trial 52 finished with value: -37.066078 and variables: {'learning_rate': 0.002586, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 34 with value: -37.917444.
+[I ...] Trial 51 finished with value: -36.412249 and variables: {'learning_rate': 0.000283, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 37 with value: -37.91758.
+[I ...] Trial 52 finished with value: -35.939487 and variables: {'learning_rate': 0.0015, 'num_layers': 4, 'optimizer': rmsprop}. Best is trial 37 with value: -37.91758.
 ...
-[I 2025-02-20 20:17:46, 722] Trial 100 finished with value: -37.908955 and variables: {'learning_rate': 0.000909, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 93 with value: -37.917579.
+[I ...] Trial 100 finished with value: -37.901111 and variables: {'learning_rate': 0.000876, 'num_layers': 5, 'optimizer': rmsprop}. Best is trial 37 with value: -37.91758.
 ```
 `marsopt` retains its internal state and continues from the previously explored space.

@@ -6,7 +6,7 @@ This script demonstrates how to optimize LightGBM hyperparameters using MarsOpt.
 - Loads the Diabetes dataset.
 - Defines an objective function that trains a LightGBM model.
 - Uses MarsOpt to optimize hyperparameters for better performance.
-- Prints the best trial with optimal parameters and RMSE.
+- Prints the best trial with optimal parameters and MSE.
 """
 
 from lightgbm import LGBMRegressor

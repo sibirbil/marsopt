@@ -362,7 +362,7 @@ At each trial:
    - update the numerical noise schedule $\eta(t)$,
    - sample each variable using the elite-guided rules above.
 3. Evaluate the objective function on the resulting point.
-4. Store the completed trial only if the objective returns a finite numerical value.
+4. Store the completed trial only if the objective returns a real numerical value that is not NaN. Positive and negative infinity are allowed.
 
 This loop continues until the requested number of trials has been completed.
 

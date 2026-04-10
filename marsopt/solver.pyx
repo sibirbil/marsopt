@@ -1,10 +1,11 @@
 # cython: boundscheck=False, wraparound=False, cdivision=True, language_level=3
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
+import numbers
 import numpy as np
 cimport numpy as cnp
 from cpython.pycapsule cimport PyCapsule_GetPointer
 from time import perf_counter
-from libc.math cimport exp as cexp, log as clog, cos as ccos, sqrt as csqrt, fabs, round as cround, M_PI
+from libc.math cimport exp as cexp, log as clog, cos as ccos, sqrt as csqrt, fabs, round as cround, M_PI, isnan as c_isnan
 from libc.string cimport memset
 from libcpp.vector cimport vector
 
@@ -100,6 +101,10 @@ cdef inline int _rng_choice_p(bitgen_t *bg, int n, double *probs) noexcept nogil
 # ============================================================================
 # C-level helper functions
 # ============================================================================
+
+cdef inline bint _isnan(double x) noexcept nogil:
+    return c_isnan(x)
+
 
 cdef inline double _reflect_at_boundaries(double x, double low, double high) noexcept nogil:
     while True:
@@ -292,6 +297,43 @@ cdef void _compute_cat_lg_scores(
     # Normalize + uniform floor
     for j in range(cat_size):
         probs_out[j] = (1.0 - eta) * (probs_out[j] / s) + eta / K
+
+
+# ============================================================================
+# Objective value coercion
+# ============================================================================
+
+def _coerce_objective_value(value):
+    if isinstance(value, (bool, np.bool_, str, bytes)):
+        raise TypeError(
+            "Currently, only numerical outputs (int or float) are supported, but the function "
+            f"returned a value of type {type(value)}. Please ensure that the function returns a "
+            "numerical value."
+        )
+
+    if isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real):
+        raise TypeError(
+            "Currently, only real-valued outputs are supported, but the function "
+            f"returned a complex value of type {type(value)}. Please ensure that the function returns a "
+            "real numerical value."
+        )
+
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TypeError(
+            "Currently, only numerical outputs (int or float) are supported, but the function "
+            f"returned a value of type {type(value)}. Please ensure that the function returns a "
+            "numerical value."
+        ) from exc
+
+    if np.isnan(result):
+        raise ValueError(
+            "The objective function returned NaN. "
+            "Please ensure that the function returns a real numerical value that is not NaN."
+        )
+
+    return result
 
 
 # ============================================================================
@@ -544,10 +586,10 @@ cdef class Study:
             Direction of optimization, either "minimize" or "maximize".
         n_init_points : int, default = None
             Number of initial random points. If ``None``, it is set as:
-            ``round(sqrt(n_trials))``
+            ``max(10, round(sqrt(n_trials)))``
         final_noise : float, default = None
             Final noise level. If ``None``, it is set as:
-            ``min(1.0 / n_trials, initial_noise)``
+            ``max(1e-7, min(1.0 / n_trials, initial_noise))``
         epsilon : float, default = 1.0
             Epsilon-greedy exploration constant. At each adaptive trial, with
             probability ``epsilon / (t + 1)`` a uniform random sample is drawn
@@ -646,7 +688,7 @@ cdef class Study:
     def _suggest_numerical(self, str name, low, high, var_type, bint log):
         cdef Variable var
         cdef int trial_id, n_values
-        cdef bint small_int, medium_int
+        cdef bint small_int
         cdef double value, sigma_t, base_value, drift
         cdef double var_range, noise_val, log_base, log_high_val, log_low_val, log_range
         cdef double hist_total, v_tmp
@@ -677,10 +719,9 @@ cdef class Study:
         trial_id = self._current_trial.trial_id
         n_values = (high - low + 1) if var_type is int else 0
         small_int = var_type is int and not log and n_values <= 20
-        medium_int = False
 
         if trial_id < self.n_init_points or self._force_random:
-            if small_int or medium_int:
+            if small_int:
                 value = low + _rng_randint(bg, n_values)
             else:
                 if log:
@@ -703,28 +744,6 @@ cdef class Study:
             else:
                 _normalize_scores(self._scores_buf, n_values, self._current_noise)
                 value = low + _rng_choice_p(bg, n_values, self._scores_buf)
-
-        elif medium_int:
-            elite_var = var.values[self._elite_indices_arr]
-            self._elite_buf.clear()
-            for i in range(elite_var.shape[0]):
-                v_tmp = (<double*>cnp.PyArray_DATA(elite_var))[i]
-                if v_tmp == v_tmp and low <= v_tmp <= high:
-                    self._elite_buf.push_back(v_tmp)
-            n_valid = <int>self._elite_buf.size()
-
-            if n_valid == 0:
-                value = low + _rng_randint(bg, n_values)
-            else:
-                rand_idx = _rng_randint(bg, n_valid)
-                base_value = self._elite_buf[rand_idx]
-                sigma_t = self._current_noise * csqrt(<double>n_values)
-                value = base_value + <int>cround(_rng_normal(bg, 0.0, sigma_t, &self._has_gauss, &self._gauss_cache))
-                while value < low or value > high:
-                    if value < low:
-                        value = low + (low - value)
-                    if value > high:
-                        value = high - (value - high)
 
         else:
             var_data = <double*>cnp.PyArray_DATA(var.values)
@@ -797,7 +816,7 @@ cdef class Study:
                 noise_val = _rng_normal(bg, 0.0, self._current_noise * var_range, &self._has_gauss, &self._gauss_cache)
                 value = _reflect_at_boundaries(base_value + noise_val + drift, <double>low, <double>high)
 
-        if var_type is int and not small_int and not medium_int:
+        if var_type is int and not small_int:
             value = <int>value + <int>((_rng_double(bg) < fabs(value - <int>value)) * (1 if value > 0 else -1))
 
         var.values[self._current_trial.trial_id] = value
@@ -1085,20 +1104,18 @@ cdef class Study:
             self._current_cat_parent_idx = -1
             trial = Trial(self, iteration)
             self._current_trial = trial
-            obj_value = objective_function(trial)
-
-            if not isinstance(obj_value, (int, float)):
-                raise TypeError(
-                    "Currently, only numerical outputs (int or float) are supported, but the function "
-                    f"returned a value of type {type(obj_value)}. Please ensure that the function returns a "
-                    "numerical value."
-                )
-
-            if not np.isfinite(obj_value):
-                raise ValueError(
-                    f"The objective function returned a non-finite value: {obj_value}. "
-                    "Please ensure that the function returns a finite numerical value (not NaN or Inf)."
-                )
+            raw_obj_value = objective_function(trial)
+            if type(raw_obj_value) is float:
+                obj_value = <double>raw_obj_value
+                if _isnan(obj_value):
+                    raise ValueError(
+                        "The objective function returned NaN. "
+                        "Please ensure that the function returns a real numerical value that is not NaN."
+                    )
+            elif type(raw_obj_value) is int:
+                obj_value = <double>raw_obj_value
+            else:
+                obj_value = _coerce_objective_value(raw_obj_value)
 
             obj_ptr[iteration] = obj_value
             time_ptr[iteration] = perf_counter() - start_time
@@ -1119,6 +1136,7 @@ cdef class Study:
             self._sorted_idx.insert(self._sorted_idx.begin() + lo, <long>iteration)
 
             is_new_best = (
+                best_iteration is None or
                 (self.direction == "minimize" and obj_value < best_value) or
                 (self.direction == "maximize" and obj_value > best_value)
             )

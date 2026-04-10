@@ -136,10 +136,10 @@ class Study:
             Direction of optimization, either "minimize" or "maximize".
         n_init_points : int, default = None
             Number of initial random points. If ``None``, it is set as:
-            ``round(sqrt(n_trials))``
+            ``max(10, round(sqrt(n_trials)))``
         final_noise : float, default = None
             Final noise level. If ``None``, it is set as:
-            ``min(1.0 / n_trials, initial_noise)``
+            ``max(1e-7, min(1.0 / n_trials, initial_noise))``
         epsilon : float, default = 1.0
             Epsilon-greedy exploration constant. At each adaptive trial, with
             probability ``epsilon / (t + 1)`` a uniform random sample is drawn
