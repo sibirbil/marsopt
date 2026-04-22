@@ -37,7 +37,7 @@ When the number of trials was increased to 1000, CMA-ES emerged as the top perfo
 
 We compared two different objective functions for hyperparameter optimization using LightGBM on the California Housing dataset.
 
-#### Simple Objective
+### Simple Objective
 * Uses only GBDT (Gradient Boosting Decision Tree) as the boosting type
 * Has a narrower parameter search space
 * Optimizes basic parameters such as:
@@ -49,7 +49,7 @@ We compared two different objective functions for hyperparameter optimization us
 
 ![Simple objective results on California Housing](_static/performance/hyperparameter_california_housing_simple.png)
 
-#### Complex Objective
+### Complex Objective
 * Allows selection between GBDT and GOSS (Gradient-based One-Side Sampling) boosting types
 * Features a wider parameter search space
 * Includes additional parameters such as:

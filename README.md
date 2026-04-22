@@ -49,10 +49,10 @@ def objective(trial: Trial) -> float:
     score += np.log1p(layers) * 10  
     score += {"adam": 15, "sgd": 5, "rmsprop": 20}[optimizer]
 
-    return score 
+    return -score
 
 # Run optimization
-study = Study(direction="minimize", random_state=42) # Minimize the  score
+study = Study(direction="minimize", random_state=42)
 study.optimize(objective, n_trials=50)
 ```
 

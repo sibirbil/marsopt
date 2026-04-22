@@ -120,8 +120,6 @@ class OptimizationLogger:
             The dictionary of variables used in the trial.
         objective : float
             The objective function value obtained in the trial.
-        time : float
-            The time taken for the trial (in seconds).
         best_iteration : int
             The iteration number that yielded the best objective value so far.
         best_value : float

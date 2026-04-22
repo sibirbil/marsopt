@@ -3,10 +3,10 @@ LightGBM Hyperparameter Optimization using marsopt
 
 This script demonstrates how to optimize LightGBM hyperparameters using MarsOpt.
 
-- Loads the Boston Housing dataset.
+- Loads the Diabetes dataset.
 - Defines an objective function that trains a LightGBM model.
 - Uses MarsOpt to optimize hyperparameters for better performance.
-- Prints the best trial with optimal parameters and RMSE.
+- Prints the best trial with optimal parameters and MSE.
 """
 
 from lightgbm import LGBMRegressor
@@ -36,7 +36,6 @@ def objective(trial: Trial):
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
         "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 1.0),
         "reg_lambda": trial.suggest_float("reg_lambda", 0.0, 1.0),
-        "verbosisy":-1
     }
 
     model = LGBMRegressor(**params)

@@ -1,6 +1,6 @@
-numpy
+numpy>=2
+cython>=3.0
 sphinx_autodoc_typehints
 furo
 myst-parser
 sphinx
-sphinx_rtd_theme

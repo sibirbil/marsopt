@@ -9,8 +9,8 @@ from marsopt import __version__
 
 # Project information
 project = "marsopt"
-copyright = "2025, Samet Çopur"
-author = "Samet Çopur"
+copyright = "2025, Samet Çopur, İlker Birbil"
+author = "Samet Çopur, İlker Birbil"
 version = __version__
 release = __version__
 
@@ -20,7 +20,6 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
-    "sphinx_rtd_theme",
     "sphinx.ext.mathjax",
     "myst_parser",
 ]
