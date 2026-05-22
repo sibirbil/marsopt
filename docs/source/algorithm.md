@@ -159,9 +159,11 @@ where $p_t$ is the progress ratio. This biases new proposals in the direction of
 
 For integer variables with a **small range** ($\le 20$ distinct values), MARS uses a dedicated ordinal-aware sampling mechanism instead of the continuous-then-round approach.
 
+This sampler is applied only when the variable is **not log-scaled**; log-scaled integers always use the continuous-then-round path of Section 4.5 regardless of range.
+
 #### Initial Phase
 
-During the initial random phase, a uniform one-hot vector of size $n_{\text{values}} = \text{high} - \text{low} + 1$ is generated and the argmax is taken, producing a uniformly random integer in $[\text{low}, \text{high}]$.
+During the initial random phase, a uniformly random integer in $[\text{low}, \text{high}]$ is sampled directly, where $n_{\text{values}} = \text{high} - \text{low} + 1$.
 
 #### Adaptive Phase
 
@@ -264,8 +266,10 @@ This keeps categorical sampling aligned with the same elite schedule and recency
 For each category $j$, MARS accumulates separate statistics over the good and bad sets. The good set is rank-weighted so that stronger elites contribute more:
 
 $$
-w_i = \log(n_{\text{good}}(t)+1) - \log(i+1), \quad i=1,\dots,n_{\text{good}}(t).
+w_i = \log(n_{\text{good}}(t)+1) - \log(i+1), \quad i=0,1,\dots,n_{\text{good}}(t)-1,
 $$
+
+where $i$ is the 0-based rank of an elite within the good set (rank $0$ = strongest). The worst-ranked elite still receives a strictly positive weight $\log\!\bigl((n_{\text{good}}+1)/n_{\text{good}}\bigr) > 0$, so no elite in the good set is fully discarded.
 
 The resulting summaries are
 
@@ -297,16 +301,18 @@ $$
 s_j = \log p_j^{\text{good}} - \log p_j^{\text{bad}}.
 $$
 
-MARS exponentiates these scores, normalizes them, and then adds a small uniform floor $\eta$:
+MARS exponentiates these scores, normalizes them, and then adds a small uniform floor $\eta_{\text{cat}}$:
 
 $$
 \pi_j
 =
-(1-\eta)\,
+(1-\eta_{\text{cat}})\,
 \frac{\exp(s_j)}{\sum_r \exp(s_r)}
 +
-\frac{\eta}{k}.
+\frac{\eta_{\text{cat}}}{k}.
 $$
+
+Here $\eta_{\text{cat}}$ is a **fixed** smoothing constant (set to $0.02$ in the implementation) — distinct from the time-varying noise schedule $\eta(t)$ used for numerical variables in Section 3. Its only role is to keep all categories reachable; it does not anneal with the optimization progress.
 
 This creates a lightweight TPE-style contrast: categories overrepresented among strong recent trials and underrepresented among weaker trials receive higher probability.
 
@@ -337,7 +343,13 @@ $$
 \text{confidence} = \sqrt{\text{excess} \cdot \text{margin}}.
 $$
 
-If $\mu_t$ denotes the categorical mutation probability induced by the current noise level, then the parent-copy probability is
+Let $\mu_t$ denote the categorical mutation probability induced by the current noise level. It is computed from $\eta(t)$ and clipped to a safe range:
+
+$$
+\mu_t = \mathrm{clip}\bigl(0.10 + 1.25\,\eta(t),\; 0.15,\; 0.75\bigr).
+$$
+
+The parent-copy probability is then
 
 $$
 p_{\text{copy}} = (1 - \mu_t)\,\text{confidence}.
@@ -360,11 +372,21 @@ At each trial:
    - compute the current progress ratio $p_t$,
    - compute $n_{\text{elite}}(t)$,
    - update the numerical noise schedule $\eta(t)$,
-   - sample each variable using the elite-guided rules above.
+   - with probability $\varepsilon_t = \varepsilon / (t+1)$, **force a uniform random sample** for the entire trial (epsilon-greedy exploration with harmonic decay; $\varepsilon$ is a user-controlled constant with default $1.0$);
+   - otherwise, sample each variable using the elite-guided rules above.
 3. Evaluate the objective function on the resulting point.
-4. Store the completed trial only if the objective returns a real numerical value that is not NaN. Positive and negative infinity are allowed.
+4. If the objective returns NaN, MARS raises a `ValueError` and the optimization is aborted. Real numerical values, including positive and negative infinity, are accepted and stored.
 
 This loop continues until the requested number of trials has been completed.
+
+### 6.1. Epsilon-Greedy Exploration
+
+The harmonic schedule $\varepsilon_t = \varepsilon / (t+1)$ injects pure random exploration that decays as more trials accumulate:
+
+- early on, $\varepsilon_t$ is close to $\varepsilon$, so a fraction of adaptive trials sidestep the elite-guided machinery and probe the space uniformly;
+- late in the run, $\varepsilon_t \to 0$, so the search behaves almost entirely as elite-guided.
+
+Setting $\varepsilon$ to a smaller value disables this exploration more aggressively; setting it to $0$ removes the random override entirely.
 
 ## 7. Careful Theoretical Interpretation
 

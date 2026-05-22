@@ -193,6 +193,14 @@ Internally, a **cosine annealing** schedule adjusts noise from `initial_noise` d
 
 - **`n_init_points`** (int): Number of random points sampled before adaptive strategies kick in.  Defaults to `max(10, round(√n_trials))` if unspecified.
 
+### Epsilon-Greedy Exploration
+
+- **`epsilon`** (float, default `1.0`): Controls a small dose of pure random exploration that is mixed into the adaptive phase. At each adaptive trial, with probability `epsilon / (t + 1)` MARS ignores the elite-guided sampler and draws a uniform random sample from the search space. The probability decays harmonically with the trial index, so exploration is strongest early on and fades over time. Set to a smaller value (or `0`) to reduce or disable random fallback.
+
+### Elite Window
+
+- **`elite_window`** (int, default `None`): If set, only the most recent `elite_window` completed trials are considered when forming the elite set (and the candidate pool used by the categorical good/bad scoring). Useful when the search space drifts, when older trials are no longer representative, or when you want the optimizer to “forget” early random exploration faster. If `None`, the full completed history is used.
+
 ### Adding More Trials Later
 
 If you decide 50 trials aren’t enough, you can resume with additional trials:

@@ -15,7 +15,7 @@ MARS achieves up to **150× faster performance** compared to Optuna. The results
 
 We used [SigOpt evalset](https://github.com/sigopt/evalset/tree/main) to compile set of predefined optimization problems.  For each problem, we conducted 30 runs with different random seeds to compare the average performance of different algorithms. These algorithms are as follows:
 - CMA-ES
-- Optuna
+- Optuna (TPE)
 - Random Search
 - MARS
 
